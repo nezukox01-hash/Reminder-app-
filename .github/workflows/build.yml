@@ -34,14 +34,11 @@ jobs:
         run: flutter pub get
 
       - name: Build debug APK
-    # 📌to return all verson of apk or fat apk again just remove (--target-platform android-arm64)
-   
-       run: flutter build apk --debug --target-platform android-arm64
-       
+        # 👉 THIS IS THE CHANGED LINE: Now it only builds the small version for your phone
+        run: flutter build apk --debug --target-platform android-arm64
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ts-reminder-apk
           path: ts_reminder/build/app/outputs/flutter-apk/app-debug.apk
-          
