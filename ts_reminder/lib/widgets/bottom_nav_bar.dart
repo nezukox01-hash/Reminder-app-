@@ -35,8 +35,8 @@ class AppBottomNavBar extends StatelessWidget {
           GestureDetector(
             onTap: () => onTap(2),
             child: Container(
-              height: 72,
-              width: 72,
+              height: 60,
+              width: 60,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white,
