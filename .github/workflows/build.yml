@@ -1,27 +1,50 @@
-name: Flutter Build
+name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout the repo
       - uses: actions/checkout@v4
 
+      # 2️⃣ Setup Java (required for Gradle)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 3️⃣ Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.6'
+          channel: 'stable'
+          cache: true
 
-      - name: Install dependencies
+      # 4️⃣ Install Android SDK platforms and Build Tools
+      - name: Install Android SDK & Build Tools
+        run: |
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          yes | sdkmanager --licenses
+
+      # 5️⃣ Get Flutter dependencies
+      - name: Get Flutter dependencies
         run: flutter pub get
-        working-directory: ts_reminder
 
-      - name: Build APK
+      # 6️⃣ Build debug APK
+      - name: Build debug APK
         run: flutter build apk --debug
-        working-directory: ts_reminder
+
+      # 7️⃣ Upload APK artifact
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ts-reminder-apk
+          path: ts_reminder/build/app/outputs/flutter-apk/app-debug.apk
