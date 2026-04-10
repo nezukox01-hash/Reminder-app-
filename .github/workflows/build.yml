@@ -37,8 +37,8 @@ jobs:
         # 👉 THIS IS THE CHANGED LINE: Now it only builds the small version for your phone
         run: flutter build apk --release --split-per-abi
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ts-reminder-apk
-          path: ts_reminder/build/app/outputs/flutter-apk/app-debug.apk
+      - name: Upload APKs
+  uses: actions/upload-artifact@v4
+  with:
+    name: ts-reminder-release-apks
+    path: ts_reminder/build/app/outputs/flutter-apk/*.apk
