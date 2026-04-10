@@ -159,42 +159,53 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFeatureGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 18,
-      mainAxisSpacing: 18,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 0.98,
-      children: const [
-        HomeCard(
-          title: 'Timer',
-          subtitle: '25/5 focus',
-          icon: Icons.timer_rounded,
-          color: AppColors.timer,
-        ),
-        HomeCard(
-          title: 'Reminder',
-          subtitle: 'Alerts & plans',
-          icon: Icons.notifications_active_rounded,
-          color: AppColors.reminder,
-        ),
-        HomeCard(
-          title: 'Daily Tasks',
-          subtitle: 'Track progress',
-          icon: Icons.check_circle_rounded,
-          color: AppColors.tasks,
-        ),
-        HomeCard(
-          title: 'Motivation',
-          subtitle: 'Stay strong',
-          icon: Icons.auto_awesome_rounded,
-          color: AppColors.motivation,
-        ),
-      ],
-    );
-  }
+ Widget _buildFeatureGrid() {
+  return GridView.count(
+    crossAxisCount: 2,
+    crossAxisSpacing: 18,
+    mainAxisSpacing: 18,
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    childAspectRatio: 0.95,
+    children: [
+      HomeCard(
+        title: 'Timer',
+        icon: Icons.timer_rounded,
+        color: AppColors.timer,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const TimerScreen(),
+            ),
+          );
+        },
+      ),
+      HomeCard(
+        title: 'Reminder',
+        icon: Icons.notifications_active_rounded,
+        color: AppColors.reminder,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ReminderScreen(),
+            ),
+          );
+        },
+      ),
+      const HomeCard(
+        title: 'Daily Tasks',
+        icon: Icons.check_circle_rounded,
+        color: AppColors.tasks,
+      ),
+      const HomeCard(
+        title: 'Motivation',
+        icon: Icons.auto_awesome_rounded,
+        color: AppColors.motivation,
+      ),
+    ],
+  );
 }
 
 class _QuickActionButton extends StatelessWidget {
