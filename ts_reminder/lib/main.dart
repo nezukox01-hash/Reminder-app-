@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:just_audio/just_audio.dart';
 import 'dart:async';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  tz.initializeTimeZones();
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppState(prefs),
@@ -20,7 +26,7 @@ class TSReminderApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TS Reminder',
+      title: 'TS Reminder + Study Timer',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
@@ -34,15 +40,31 @@ class AppState extends ChangeNotifier {
   final SharedPreferences prefs;
   int dailyTaskCount = 0;
 
-  // Timer state
+  // Timer
   Timer? timer;
   bool isTimerRunning = false;
   Duration currentDuration = const Duration(minutes: 25);
+  bool isFocus = true; // true = focus, false = break
+
+  // Notifications
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  final AudioPlayer audioPlayer = AudioPlayer();
 
   AppState(this.prefs) {
     dailyTaskCount = prefs.getInt('dailyTaskCount') ?? 0;
+    _initializeNotifications();
   }
 
+  void _initializeNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
+
+  // Timer functions
   void startTimer(Duration duration) {
     currentDuration = duration;
     isTimerRunning = true;
@@ -52,7 +74,7 @@ class AppState extends ChangeNotifier {
         currentDuration -= const Duration(seconds: 1);
         notifyListeners();
       } else {
-        stopTimer();
+        _switchTimer();
       }
     });
     notifyListeners();
@@ -62,6 +84,15 @@ class AppState extends ChangeNotifier {
     isTimerRunning = false;
     timer?.cancel();
     currentDuration = const Duration(minutes: 25);
+    isFocus = true;
+    notifyListeners();
+  }
+
+  void _switchTimer() {
+    // Toggle between focus/break
+    isFocus = !isFocus;
+    currentDuration = isFocus ? const Duration(minutes: 25) : const Duration(minutes: 5);
+    _playSound();
     notifyListeners();
   }
 
@@ -69,6 +100,38 @@ class AppState extends ChangeNotifier {
     dailyTaskCount++;
     prefs.setInt('dailyTaskCount', dailyTaskCount);
     notifyListeners();
+  }
+
+  Future<void> _playSound() async {
+    try {
+      await audioPlayer.setAsset('assets/sounds/reminder.mp3');
+      audioPlayer.play();
+    } catch (e) {
+      debugPrint('Error playing sound: $e');
+    }
+  }
+
+  Future<void> scheduleReminder({required int seconds}) async {
+    final scheduledTime = tz.TZDateTime.now(tz.local).add(Duration(seconds: seconds));
+    const androidDetails = AndroidNotificationDetails(
+      'reminder_channel',
+      'Reminder Notifications',
+      channelDescription: 'Notifications for TS Reminder tasks',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const notificationDetails = NotificationDetails(android: androidDetails);
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      0,
+      'TS Reminder',
+      'Time to check your task!',
+      scheduledTime,
+      notificationDetails,
+      androidAllowWhileIdle: true,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+    );
+    _playSound();
   }
 }
 
@@ -81,28 +144,25 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TS Reminder Home'),
+        title: const Text('TS Reminder + Study Timer'),
         centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ListView(
           children: [
-            // Timer Card
+            // Study Timer Card
             HomeCard(
-              title: 'Timer',
+              title: 'Study Timer',
               icon: Icons.timer,
-              color: Colors.greenAccent,
+              color: appState.isFocus ? Colors.greenAccent : Colors.redAccent,
               child: Column(
                 children: [
                   Text(
                     appState.isTimerRunning
                         ? formatDuration(appState.currentDuration)
                         : '25:00',
-                    style: const TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -111,15 +171,12 @@ class HomeScreen extends StatelessWidget {
                       ElevatedButton(
                         onPressed: appState.isTimerRunning
                             ? null
-                            : () => appState.startTimer(
-                                const Duration(minutes: 25)),
+                            : () => appState.startTimer(const Duration(minutes: 25)),
                         child: const Text('Start Focus'),
                       ),
                       const SizedBox(width: 12),
                       ElevatedButton(
-                        onPressed: appState.isTimerRunning
-                            ? appState.stopTimer
-                            : null,
+                        onPressed: appState.isTimerRunning ? appState.stopTimer : null,
                         child: const Text('Stop'),
                       ),
                     ],
@@ -127,7 +184,6 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
 
             // Daily Tasks Card
@@ -141,7 +197,6 @@ class HomeScreen extends StatelessWidget {
                 onTap: () => appState.incrementDailyTask(),
               ),
             ),
-
             const SizedBox(height: 20),
 
             // Reminder Card
@@ -149,11 +204,13 @@ class HomeScreen extends StatelessWidget {
               title: 'Reminders',
               icon: Icons.notifications,
               color: Colors.orangeAccent,
-              child: const Center(
-                child: Text('Reminder list placeholder'),
+              child: Center(
+                child: ElevatedButton(
+                  onPressed: () => appState.scheduleReminder(seconds: 10),
+                  child: const Text('Test Reminder in 10s'),
+                ),
               ),
             ),
-
             const SizedBox(height: 20),
 
             // Daily Report Card
@@ -161,11 +218,8 @@ class HomeScreen extends StatelessWidget {
               title: 'Daily Report',
               icon: Icons.bar_chart,
               color: Colors.purpleAccent,
-              child: const Center(
-                child: Text('Daily report placeholder'),
-              ),
+              child: const Center(child: Text('Daily report placeholder')),
             ),
-
             const SizedBox(height: 20),
 
             // Notes Card
@@ -173,9 +227,7 @@ class HomeScreen extends StatelessWidget {
               title: 'Notes',
               icon: Icons.note,
               color: Colors.tealAccent,
-              child: const Center(
-                child: Text('Notes placeholder'),
-              ),
+              child: const Center(child: Text('Notes placeholder')),
             ),
           ],
         ),
@@ -220,13 +272,7 @@ class HomeCard extends StatelessWidget {
               child: Icon(icon, size: 32, color: Colors.white),
             ),
             const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             child,
           ],
