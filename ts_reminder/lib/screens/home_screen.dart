@@ -164,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisSpacing: 18,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 0.88,
+      childAspectRatio: 0.98,
       children: const [
         HomeCard(
           title: 'Timer',
