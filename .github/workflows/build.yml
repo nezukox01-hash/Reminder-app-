@@ -1,33 +1,44 @@
-name: ts_reminder
-description: A study progress and reminder app.
-publish_to: 'none'
+name: Build Android APK
 
-# The following defines the version and build number for your application.
-version: 1.0.0+1
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
-environment:
-  sdk: '>=3.0.0 <4.0.0'
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-dependencies:
-  flutter:
-    sdk: flutter
+    # Tells the server to run commands inside your app folder
+    defaults:
+      run:
+        working-directory: ./ts_reminder
 
-  # 👉 THE FIX: This is the modern version that supports the new Android namespace
-  flutter_local_notifications: ^17.0.0
+    steps:
+      - uses: actions/checkout@v4
 
-  # ⚠️ Add any other plugins you were using right below here:
-  # shared_preferences: ^2.2.0
-  # timezone: ^0.9.2
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.41.6'
 
-flutter:
-  uses-material-design: true
+      - name: Get Flutter dependencies
+        run: flutter pub get
 
-  # 👉 This correctly links the sounds folder from your file tree so notifications can use them
-  assets:
-    - assets/sounds/
-    
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ts-reminder-apk
+          path: ts_reminder/build/app/outputs/flutter-apk/app-debug.apk
+          
