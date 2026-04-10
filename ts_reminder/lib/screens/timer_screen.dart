@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import '../utils/colors.dart';
 
 enum TimerPhase { focus, breakTime }
@@ -70,6 +72,8 @@ class _TimerScreenState extends State<TimerScreen>
   }
 
   Future<void> _initialize() async {
+    tz.initializeTimeZones();
+
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidInit);
     await _notifications.initialize(initSettings);
@@ -89,12 +93,13 @@ class _TimerScreenState extends State<TimerScreen>
     _isRunning = prefs.getBool(_runningKey) ?? false;
     _isPaused = prefs.getBool(_pausedKey) ?? false;
     _phaseEndMillis = prefs.getInt(_endMillisKey);
-    _remainingSeconds =
-        prefs.getInt(_remainingKey) ?? (_focusMinutes * 60);
     _focusMinutes = prefs.getInt(_focusMinutesKey) ?? 25;
     _breakMinutes = prefs.getInt(_breakMinutesKey) ?? 5;
     _completedFocusSessions = prefs.getInt(_completedSessionsKey) ?? 0;
     _totalStudySeconds = prefs.getInt(_totalStudySecondsKey) ?? 0;
+
+    _remainingSeconds = prefs.getInt(_remainingKey) ??
+        (_phase == TimerPhase.focus ? _focusMinutes * 60 : _breakMinutes * 60);
 
     if (_isRunning && !_isPaused && _phaseEndMillis != null) {
       _catchUpWithCurrentTime();
@@ -257,7 +262,9 @@ class _TimerScreenState extends State<TimerScreen>
       _remainingSeconds = _breakMinutes * 60;
       await _playAudio('assets/audio/assistant/break_time_sir.mp3');
     } else {
-      await _playAudio('assets/audio/assistant/break_is_over_back_to_work_sir.mp3');
+      await _playAudio(
+        'assets/audio/assistant/break_is_over_back_to_work_sir.mp3',
+      );
       _phase = TimerPhase.focus;
       _remainingSeconds = _focusMinutes * 60;
     }
@@ -278,7 +285,7 @@ class _TimerScreenState extends State<TimerScreen>
 
     await _notifications.cancel(100);
 
-    final androidDetails = const AndroidNotificationDetails(
+    const androidDetails = AndroidNotificationDetails(
       'timer_channel',
       'Timer Alerts',
       channelDescription: 'Timer phase completion alerts',
@@ -286,17 +293,20 @@ class _TimerScreenState extends State<TimerScreen>
       priority: Priority.high,
     );
 
-    final details = const NotificationDetails(android: androidDetails);
+    final details = NotificationDetails(android: androidDetails);
+    final scheduledTime = DateTime.fromMillisecondsSinceEpoch(_phaseEndMillis!);
 
-    await _notifications.schedule(
+    await _notifications.zonedSchedule(
       100,
       'TS Reminder',
       _phase == TimerPhase.focus
           ? 'Focus session complete, sir.'
           : 'Break is over, sir. Back to work.',
-      DateTime.fromMillisecondsSinceEpoch(_phaseEndMillis!),
+      tz.TZDateTime.from(scheduledTime, tz.local),
       details,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
@@ -314,7 +324,7 @@ class _TimerScreenState extends State<TimerScreen>
       await _player.setAsset(assetPath);
       await _player.play();
     } catch (_) {
-      // ignore if file not added yet
+      // ignore missing audio for now
     }
   }
 
@@ -554,10 +564,9 @@ class _TimerScreenState extends State<TimerScreen>
                             flex: 2,
                             child: _ActionButton(
                               color: const Color(0xFF4D88F8),
-                              icon: _isRunning && _isPaused
-                                  ? Icons.play_arrow_rounded
-                                  : Icons.play_arrow_rounded,
-                              label: _isRunning && _isPaused ? 'Resume' : 'Start',
+                              icon: Icons.play_arrow_rounded,
+                              label:
+                                  _isRunning && _isPaused ? 'Resume' : 'Start',
                               onTap: _startTimer,
                             ),
                           ),
