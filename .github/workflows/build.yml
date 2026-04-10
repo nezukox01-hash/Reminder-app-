@@ -10,7 +10,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Tells the server to run commands inside your app folder
     defaults:
       run:
         working-directory: ./ts_reminder
@@ -33,12 +32,11 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Build debug APK
-        # 👉 THIS IS THE CHANGED LINE: Now it only builds the small version for your phone
+      - name: Build release APKs
         run: flutter build apk --release --split-per-abi
 
       - name: Upload APKs
-  uses: actions/upload-artifact@v4
-  with:
-    name: ts-reminder-release-apks
-    path: ts_reminder/build/app/outputs/flutter-apk/*.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: ts-reminder-release-apks
+          path: ts_reminder/build/app/outputs/flutter-apk/*.apk
