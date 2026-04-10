@@ -7,6 +7,8 @@ import '../utils/colors.dart';
 import '../widgets/assistant_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
+import 'timer_screen.dart';
+import 'reminder_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
