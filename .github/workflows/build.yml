@@ -10,6 +10,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # 🛑 THE FIX: This tells the server to run commands inside your app folder
+    defaults:
+      run:
+        working-directory: ./ts_reminder
+
     steps:
       # 1️⃣ Checkout the repo
       - uses: actions/checkout@v4
@@ -21,19 +26,19 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # 3️⃣ Setup Flutter (with Android SDK included)
+      # 3️⃣ Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           flutter-version: '3.41.6'
-          android: true   # ✅ this installs the Android SDK automatically
+          # Removed the hallucinated 'android: true' parameter
 
-      # 4️⃣ Get Flutter dependencies
+      # 4️⃣ Get Flutter dependencies (Now correctly runs inside ts_reminder/)
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      # 5️⃣ Build debug APK
+      # 5️⃣ Build debug APK (Now correctly runs inside ts_reminder/)
       - name: Build debug APK
         run: flutter build apk --debug
 
@@ -43,3 +48,4 @@ jobs:
         with:
           name: ts-reminder-apk
           path: ts_reminder/build/app/outputs/flutter-apk/app-debug.apk
+          
