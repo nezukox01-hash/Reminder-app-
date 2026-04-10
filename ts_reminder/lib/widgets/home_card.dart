@@ -3,7 +3,6 @@ import '../utils/colors.dart';
 
 class HomeCard extends StatelessWidget {
   final String title;
-  final String subtitle;
   final IconData icon;
   final Color color;
   final VoidCallback? onTap;
@@ -11,7 +10,6 @@ class HomeCard extends StatelessWidget {
   const HomeCard({
     super.key,
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.color,
     this.onTap,
@@ -68,16 +66,6 @@ class HomeCard extends StatelessWidget {
                   color: AppColors.primaryText,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
