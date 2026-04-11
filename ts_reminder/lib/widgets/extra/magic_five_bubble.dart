@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
 class MagicFiveBubble extends StatefulWidget {
-  const MagicFiveBubble({super.key});
+  final VoidCallback? onClose;
+
+  const MagicFiveBubble({
+    super.key,
+    this.onClose,
+  });
 
   @override
   State<MagicFiveBubble> createState() => _MagicFiveBubbleState();
@@ -12,7 +17,6 @@ class MagicFiveBubble extends StatefulWidget {
 class _MagicFiveBubbleState extends State<MagicFiveBubble> {
   int seconds = 300;
   Timer? timer;
-
   final AudioPlayer _player = AudioPlayer();
 
   @override
@@ -24,6 +28,7 @@ class _MagicFiveBubbleState extends State<MagicFiveBubble> {
 
   Future<void> _playStartVoice() async {
     try {
+      await _player.stop();
       await _player.setAsset('assets/audio/assistant/magic_start.mp3');
       await _player.play();
     } catch (_) {}
@@ -31,18 +36,21 @@ class _MagicFiveBubbleState extends State<MagicFiveBubble> {
 
   Future<void> _playEndVoice() async {
     try {
+      await _player.stop();
       await _player.setAsset('assets/audio/assistant/magic_end.mp3');
       await _player.play();
     } catch (_) {}
   }
 
   void _start() {
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
+    timer = Timer.periodic(const Duration(seconds: 1), (t) async {
       if (seconds > 0) {
-        setState(() => seconds--);
+        setState(() {
+          seconds--;
+        });
       } else {
         t.cancel();
-        _playEndVoice();
+        await _playEndVoice();
       }
     });
   }
@@ -76,14 +84,29 @@ class _MagicFiveBubbleState extends State<MagicFiveBubble> {
               BoxShadow(
                 color: Colors.black.withOpacity(0.4),
                 blurRadius: 20,
-              )
+              ),
             ],
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Magic 5',
-                style: TextStyle(color: Colors.white70),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Magic 5',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: widget.onClose,
+                    child: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
