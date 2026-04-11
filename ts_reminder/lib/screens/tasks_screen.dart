@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/colors.dart';
 
@@ -505,21 +505,133 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _skipTask(TaskItem task) async {
-    final index = _tasks.indexWhere((e) => e.id == task.id);
-    if (index == -1) return;
+  // If HIGH priority → show warning dialog
+  if (task.priority == 3) {
+    final shouldSkip = await _showHighPrioritySkipDialog(task);
 
-    _tasks[index] = task.copyWith(
-      isSkipped: true,
-      isDone: false,
-    );
-
-    _sortTasks();
-    await _saveTasks();
-
-    if (mounted) {
-      setState(() {});
-    }
+    if (shouldSkip != true) return;
   }
+
+  final index = _tasks.indexWhere((e) => e.id == task.id);
+  if (index == -1) return;
+
+  _tasks[index] = task.copyWith(
+    isSkipped: true,
+    isDone: false,
+  );
+
+  _sortTasks();
+  await _saveTasks();
+
+  if (mounted) {
+    setState(() {});
+  }
+}
+
+  Future<bool?> _showHighPrioritySkipDialog(TaskItem task) {
+  return showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF102643),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: const Text(
+          'Skip High Priority Task?',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to skip this task?\n\nDo you have something urgent?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, false);
+            },
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, true);
+            },
+            child: const Text(
+              'Skip Anyway',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4D88F8),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _showMotivationDialog();
+            },
+            child: const Text(
+              'Help Me',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+  void _showMotivationDialog() {
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF102643),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: const Text(
+          'Stay Focused',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'You chose this task for a reason.\n\nJust start for 5 minutes. You can do it.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text(
+              'Skip Anyway',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF20C08A),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text(
+              "Let's Do It",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
 
   Future<void> _deleteTask(TaskItem task) async {
     _tasks.removeWhere((e) => e.id == task.id);
