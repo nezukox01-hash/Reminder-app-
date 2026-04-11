@@ -4,39 +4,41 @@ import 'package:just_audio/just_audio.dart';
 class SkipMotivationDialog extends StatefulWidget {
   final VoidCallback onSkip;
   final VoidCallback onStartMagic;
+  final VoidCallback onLetsDoIt;
 
   const SkipMotivationDialog({
     super.key,
     required this.onSkip,
     required this.onStartMagic,
+    required this.onLetsDoIt,
   });
 
   @override
-  State<SkipMotivationDialog> createState() =>
-      _SkipMotivationDialogState();
+  State<SkipMotivationDialog> createState() => _SkipMotivationDialogState();
 }
 
 class _SkipMotivationDialogState extends State<SkipMotivationDialog>
     with SingleTickerProviderStateMixin {
   final AudioPlayer _player = AudioPlayer();
-
   late AnimationController _waveController;
 
   @override
   void initState() {
     super.initState();
-
-    _waveController =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
-          ..repeat(reverse: true);
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
 
     _playVoice();
   }
 
   Future<void> _playVoice() async {
     try {
+      await _player.stop();
       await _player.setAsset(
-          'assets/audio/assistant/motivation_help_me.mp3');
+        'assets/audio/assistant/motivation_help_me.mp3',
+      );
       await _player.play();
     } catch (_) {}
   }
@@ -48,14 +50,14 @@ class _SkipMotivationDialogState extends State<SkipMotivationDialog>
     super.dispose();
   }
 
-  Widget _waveBar(double heightFactor) {
+  Widget _waveBar(double factor) {
     return AnimatedBuilder(
       animation: _waveController,
       builder: (_, __) {
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 3),
           width: 6,
-          height: 10 + (20 * heightFactor * _waveController.value),
+          height: 10 + (20 * factor * _waveController.value),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(10),
@@ -91,27 +93,20 @@ class _SkipMotivationDialogState extends State<SkipMotivationDialog>
               style: TextStyle(color: Colors.white70),
               textAlign: TextAlign.center,
             ),
-
             const SizedBox(height: 20),
-
-            /// 🔊 Voice Wave
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _waveBar(1),
+                _waveBar(1.0),
                 _waveBar(1.2),
                 _waveBar(0.8),
                 _waveBar(1.4),
-                _waveBar(1),
+                _waveBar(1.0),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            /// Buttons
             Row(
               children: [
-                /// Skip Anyway
                 Expanded(
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
@@ -126,10 +121,7 @@ class _SkipMotivationDialogState extends State<SkipMotivationDialog>
                     child: const Text('Skip Anyway'),
                   ),
                 ),
-
                 const SizedBox(width: 10),
-
-                /// Magic 5
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
@@ -140,15 +132,15 @@ class _SkipMotivationDialogState extends State<SkipMotivationDialog>
                       ),
                     ),
                     onPressed: widget.onStartMagic,
-                    child: const Text('Magic 5'),
+                    child: const Text(
+                      'Magic 5',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ],
             ),
-
             const SizedBox(height: 10),
-
-            /// Let's Do It
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -159,8 +151,11 @@ class _SkipMotivationDialogState extends State<SkipMotivationDialog>
                     borderRadius: BorderRadius.circular(18),
                   ),
                 ),
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Let's Do It"),
+                onPressed: widget.onLetsDoIt,
+                child: const Text(
+                  "Let's Do It",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],
