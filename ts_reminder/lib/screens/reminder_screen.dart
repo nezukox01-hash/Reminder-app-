@@ -81,7 +81,7 @@ class ReminderScreen extends StatefulWidget {
 }
 
 class _ReminderScreenState extends State<ReminderScreen> {
-  static const String storageKey = 'ts_tasks_v4';
+  static const String storageKey = 'ts_tasks_v5';
 
   final List<ReminderTaskItem> _allTasks = [];
   SharedPreferences? _prefs;
@@ -116,13 +116,36 @@ class _ReminderScreenState extends State<ReminderScreen> {
     );
   }
 
+  int _timeToMinutes(String reminderTime) {
+    if (reminderTime.isEmpty) return 999999;
+
+    try {
+      final parts = reminderTime.split(' ');
+      if (parts.length != 2) return 999999;
+
+      final hm = parts[0].split(':');
+      if (hm.length != 2) return 999999;
+
+      int hour = int.parse(hm[0]);
+      final minute = int.parse(hm[1]);
+      final suffix = parts[1].toUpperCase();
+
+      if (suffix == 'PM' && hour != 12) hour += 12;
+      if (suffix == 'AM' && hour == 12) hour = 0;
+
+      return hour * 60 + minute;
+    } catch (_) {
+      return 999999;
+    }
+  }
+
   void _sortTasks() {
     _allTasks.sort((a, b) {
-      final aPending = !a.isDone && !a.isSkipped;
-      final bPending = !b.isDone && !b.isSkipped;
+      final aTime = _timeToMinutes(a.reminderTime);
+      final bTime = _timeToMinutes(b.reminderTime);
 
-      if (aPending != bPending) {
-        return aPending ? -1 : 1;
+      if (aTime != bTime) {
+        return aTime.compareTo(bTime);
       }
 
       return b.priority.compareTo(a.priority);
@@ -206,297 +229,6 @@ class _ReminderScreenState extends State<ReminderScreen> {
     }
   }
 
-  Future<void> _openEditDialog(ReminderTaskItem existing) async {
-    final titleController = TextEditingController(text: existing.title);
-    final noteController = TextEditingController(text: existing.note);
-    final focusController = TextEditingController(
-      text: existing.focusMinutes > 0 ? existing.focusMinutes.toString() : '',
-    );
-
-    int selectedPriority = existing.priority;
-    TimeOfDay? selectedTime = _parseTime(existing.reminderTime);
-
-    await showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setLocalState) {
-            return AlertDialog(
-              backgroundColor: const Color(0xFF102643),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              title: const Text(
-                'Edit Reminder Task',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildField(
-                      label: 'Task Title',
-                      controller: titleController,
-                    ),
-                    const SizedBox(height: 14),
-                    _buildField(
-                      label: 'Note',
-                      controller: noteController,
-                    ),
-                    const SizedBox(height: 14),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: selectedTime ?? TimeOfDay.now(),
-                        );
-                        if (picked != null) {
-                          setLocalState(() {
-                            selectedTime = picked;
-                          });
-                        }
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1B2E49),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.access_time_rounded,
-                                color: Colors.white),
-                            const SizedBox(width: 10),
-                            Text(
-                              selectedTime == null
-                                  ? 'Set Reminder Time'
-                                  : selectedTime!.format(context),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildField(
-                      label: 'Focus Timer Minutes (optional)',
-                      controller: focusController,
-                      numberOnly: true,
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1B2E49),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Priority',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _priorityButton(
-                                  label: 'Low',
-                                  color: Colors.grey,
-                                  selected: selectedPriority == 1,
-                                  onTap: () {
-                                    setLocalState(() {
-                                      selectedPriority = 1;
-                                    });
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _priorityButton(
-                                  label: 'Medium',
-                                  color: Colors.blue,
-                                  selected: selectedPriority == 2,
-                                  onTap: () {
-                                    setLocalState(() {
-                                      selectedPriority = 2;
-                                    });
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _priorityButton(
-                                  label: 'High',
-                                  color: Colors.redAccent,
-                                  selected: selectedPriority == 3,
-                                  onTap: () {
-                                    setLocalState(() {
-                                      selectedPriority = 3;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4D88F8),
-                  ),
-                  onPressed: () async {
-                    final title = titleController.text.trim();
-                    final note = noteController.text.trim();
-                    final focusMinutes =
-                        int.tryParse(focusController.text.trim()) ?? 0;
-                    final reminderString = selectedTime == null
-                        ? ''
-                        : selectedTime!.format(context);
-
-                    if (title.isEmpty) return;
-
-                    final index =
-                        _allTasks.indexWhere((e) => e.id == existing.id);
-                    if (index != -1) {
-                      _allTasks[index] = existing.copyWith(
-                        title: title,
-                        note: note,
-                        reminderTime: reminderString,
-                        focusMinutes: focusMinutes,
-                        priority: selectedPriority,
-                      );
-                    }
-
-                    _sortTasks();
-                    await _saveTasks();
-
-                    if (mounted) {
-                      setState(() {});
-                    }
-
-                    if (dialogContext.mounted) {
-                      Navigator.pop(dialogContext);
-                    }
-                  },
-                  child: const Text(
-                    'Update',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildField({
-    required String label,
-    required TextEditingController controller,
-    bool numberOnly = false,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: numberOnly ? TextInputType.number : TextInputType.text,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white70),
-        filled: true,
-        fillColor: const Color(0xFF1B2E49),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _priorityButton({
-    required String label,
-    required Color color,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: selected ? color.withOpacity(0.25) : Colors.white10,
-          border: Border.all(
-            color: selected ? color : Colors.transparent,
-            width: 1.5,
-          ),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: selected ? color : Colors.white70,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-
-  TimeOfDay? _parseTime(String value) {
-    try {
-      final parts = value.split(' ');
-      if (parts.length != 2) return null;
-      final hm = parts[0].split(':');
-      if (hm.length != 2) return null;
-
-      int hour = int.parse(hm[0]);
-      final minute = int.parse(hm[1]);
-      final suffix = parts[1].toUpperCase();
-
-      if (suffix == 'PM' && hour != 12) hour += 12;
-      if (suffix == 'AM' && hour == 12) hour = 0;
-
-      return TimeOfDay(hour: hour, minute: minute);
-    } catch (_) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -539,35 +271,33 @@ class _ReminderScreenState extends State<ReminderScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
-                child: Column(
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatBox(
-                            title: 'Pending',
-                            value: '$_pendingCount',
-                            color: Colors.orange,
-                            icon: Icons.access_time_filled_rounded,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _StatBox(
-                            title: 'Done',
-                            value: '$_doneCount',
-                            color: const Color(0xFF20C08A),
-                            icon: Icons.check_circle_rounded,
-                          ),
-                        ),
-                      ],
+                    Expanded(
+                      child: _StatBox(
+                        title: 'Pending',
+                        value: '$_pendingCount',
+                        color: Colors.orange,
+                        icon: Icons.access_time_filled_rounded,
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    _WideStatBox(
-                      title: 'Skipped',
-                      value: '$_skippedCount',
-                      color: Colors.redAccent,
-                      icon: Icons.cancel_rounded,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _StatBox(
+                        title: 'Done',
+                        value: '$_doneCount',
+                        color: const Color(0xFF20C08A),
+                        icon: Icons.check_circle_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _StatBox(
+                        title: 'Skipped',
+                        value: '$_skippedCount',
+                        color: Colors.redAccent,
+                        icon: Icons.cancel_rounded,
+                      ),
                     ),
                   ],
                 ),
@@ -586,7 +316,6 @@ class _ReminderScreenState extends State<ReminderScreen> {
                             priorityLabel: _priorityLabel(task.priority),
                             onToggleDone: () => _toggleDone(task),
                             onSkip: () => _skipTask(task),
-                            onEdit: () => _openEditDialog(task),
                             onDelete: () => _deleteTask(task),
                           );
                         },
@@ -606,7 +335,6 @@ class _ReminderTile extends StatelessWidget {
   final String priorityLabel;
   final VoidCallback onToggleDone;
   final VoidCallback onSkip;
-  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _ReminderTile({
@@ -615,7 +343,6 @@ class _ReminderTile extends StatelessWidget {
     required this.priorityLabel,
     required this.onToggleDone,
     required this.onSkip,
-    required this.onEdit,
     required this.onDelete,
   });
 
@@ -736,7 +463,6 @@ class _ReminderTile extends StatelessWidget {
               onSelected: (value) {
                 if (value == 'done') onToggleDone();
                 if (value == 'skip') onSkip();
-                if (value == 'edit') onEdit();
                 if (value == 'delete') onDelete();
               },
               itemBuilder: (_) => const [
@@ -748,10 +474,6 @@ class _ReminderTile extends StatelessWidget {
                 PopupMenuItem(
                   value: 'skip',
                   child: Text('Skip', style: TextStyle(color: Colors.white)),
-                ),
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Text('Edit', style: TextStyle(color: Colors.white)),
                 ),
                 PopupMenuItem(
                   value: 'delete',
@@ -807,12 +529,12 @@ class _StatBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withOpacity(0.05),
       ),
-      child: Row(
+      child: Column(
         children: [
           Container(
             height: 42,
@@ -823,86 +545,18 @@ class _StatBox extends StatelessWidget {
             ),
             child: Icon(icon, color: color),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WideStatBox extends StatelessWidget {
-  final String title;
-  final String value;
-  final Color color;
-  final IconData icon;
-
-  const _WideStatBox({
-    required this.title,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: Colors.white.withOpacity(0.06),
-      ),
-      child: Row(
-        children: [
-          Container(
-            height: 42,
-            width: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.20),
-            ),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(width: 12),
+          const SizedBox(height: 10),
           Text(
             title,
-            style: const TextStyle(
-              color: AppColors.secondaryText,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(color: Colors.white70),
           ),
-          const Spacer(),
+          const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
+            style: TextStyle(
+              color: color,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
