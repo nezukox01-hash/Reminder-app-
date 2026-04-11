@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/colors.dart';
 
@@ -80,7 +81,8 @@ class ReminderScreen extends StatefulWidget {
   State<ReminderScreen> createState() => _ReminderScreenState();
 }
 
-class _ReminderScreenState extends State<ReminderScreen> {
+class _ReminderScreenState extends State<ReminderScreen>
+    with WidgetsBindingObserver {
   static const String storageKey = 'ts_tasks_v5';
 
   final List<ReminderTaskItem> _allTasks = [];
@@ -89,7 +91,25 @@ class _ReminderScreenState extends State<ReminderScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadTasks();
+
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _loadTasks();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadTasks();
+    }
   }
 
   Future<void> _loadTasks() async {
@@ -245,7 +265,12 @@ class _ReminderScreenState extends State<ReminderScreen> {
                 child: Row(
                   children: [
                     IconButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () async {
+                        await _loadTasks();
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                        }
+                      },
                       icon: const Icon(
                         Icons.arrow_back_ios_new_rounded,
                         color: Colors.white,
@@ -261,10 +286,13 @@ class _ReminderScreenState extends State<ReminderScreen> {
                         ),
                       ),
                     ),
-                    const Icon(
-                      Icons.notifications_active_rounded,
-                      color: Colors.white,
-                      size: 28,
+                    IconButton(
+                      onPressed: _loadTasks,
+                      icon: const Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                     ),
                   ],
                 ),
@@ -305,20 +333,23 @@ class _ReminderScreenState extends State<ReminderScreen> {
               Expanded(
                 child: _reminderTasks.isEmpty
                     ? const _EmptyReminderView()
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                        itemCount: _reminderTasks.length,
-                        itemBuilder: (context, index) {
-                          final task = _reminderTasks[index];
-                          return _ReminderTile(
-                            task: task,
-                            priorityColor: _priorityColor(task.priority),
-                            priorityLabel: _priorityLabel(task.priority),
-                            onToggleDone: () => _toggleDone(task),
-                            onSkip: () => _skipTask(task),
-                            onDelete: () => _deleteTask(task),
-                          );
-                        },
+                    : RefreshIndicator(
+                        onRefresh: _loadTasks,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          itemCount: _reminderTasks.length,
+                          itemBuilder: (context, index) {
+                            final task = _reminderTasks[index];
+                            return _ReminderTile(
+                              task: task,
+                              priorityColor: _priorityColor(task.priority),
+                              priorityLabel: _priorityLabel(task.priority),
+                              onToggleDone: () => _toggleDone(task),
+                              onSkip: () => _skipTask(task),
+                              onDelete: () => _deleteTask(task),
+                            );
+                          },
+                        ),
                       ),
               ),
             ],
