@@ -142,12 +142,9 @@ class _TimerScreenState extends State<TimerScreen>
       if (_phase == TimerPhase.focus) {
         _completedSessions += 1;
         _totalStudySeconds += _focusMinutes * 60;
-
-        // focus ended -> auto start break
         _phase = TimerPhase.breakTime;
         end += _breakMinutes * 60 * 1000;
       } else {
-        // break ended -> stop and return to focus ready state
         _phase = TimerPhase.focus;
         _isRunning = false;
         _isPaused = false;
@@ -247,7 +244,6 @@ class _TimerScreenState extends State<TimerScreen>
       _completedSessions += 1;
       _totalStudySeconds += _focusMinutes * 60;
 
-      // Auto start break
       _phase = TimerPhase.breakTime;
       _remainingSeconds = _breakMinutes * 60;
       _isRunning = true;
@@ -261,7 +257,6 @@ class _TimerScreenState extends State<TimerScreen>
 
       _startTicker();
     } else {
-      // Break end -> STOP and return to focus ready state
       _phase = TimerPhase.focus;
       _remainingSeconds = _focusMinutes * 60;
       _isRunning = false;
@@ -404,6 +399,12 @@ class _TimerScreenState extends State<TimerScreen>
     return '$mins:$secs';
   }
 
+  int get _activeIndex {
+    if (_isPaused) return 0;
+    if (_isRunning && !_isPaused) return 1;
+    return 2;
+  }
+
   @override
   Widget build(BuildContext context) {
     final progress =
@@ -414,10 +415,6 @@ class _TimerScreenState extends State<TimerScreen>
         : const Color(0xFFFFB347);
 
     final phaseLabel = _phase == TimerPhase.focus ? 'Focus' : 'Break';
-
-    final pauseActive = _isPaused;
-    final startActive = _isRunning && !_isPaused;
-    final resetActive = false;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -559,42 +556,12 @@ class _TimerScreenState extends State<TimerScreen>
                         ),
                       ),
                       const SizedBox(height: 22),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ActionButton(
-                              color: pauseActive
-                                  ? Colors.green
-                                  : const Color(0xFFE65C73),
-                              icon: Icons.pause_rounded,
-                              label: 'Pause',
-                              onTap: _pauseTimer,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            flex: 2,
-                            child: _ActionButton(
-                              color: startActive
-                                  ? Colors.green
-                                  : const Color(0xFFE65C73),
-                              icon: Icons.play_arrow_rounded,
-                              label: _isPaused ? 'Resume' : 'Start',
-                              onTap: _startOrResumeTimer,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: _ActionButton(
-                              color: resetActive
-                                  ? Colors.green
-                                  : const Color(0xFFE65C73),
-                              icon: Icons.refresh_rounded,
-                              label: 'Reset',
-                              onTap: _resetTimer,
-                            ),
-                          ),
-                        ],
+                      _SlidingActionBar(
+                        activeIndex: _activeIndex,
+                        onPause: _pauseTimer,
+                        onStart: _startOrResumeTimer,
+                        onReset: _resetTimer,
+                        startLabel: _isPaused ? 'Resume' : 'Start',
                       ),
                     ],
                   ),
@@ -646,14 +613,121 @@ class _TimerScreenState extends State<TimerScreen>
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final Color color;
+class _SlidingActionBar extends StatelessWidget {
+  final int activeIndex;
+  final VoidCallback onPause;
+  final VoidCallback onStart;
+  final VoidCallback onReset;
+  final String startLabel;
+
+  const _SlidingActionBar({
+    required this.activeIndex,
+    required this.onPause,
+    required this.onStart,
+    required this.onReset,
+    required this.startLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const barHeight = 108.0;
+    const spacing = 12.0;
+    const sideWidth = 88.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        final centerWidth = totalWidth - (sideWidth * 2) - (spacing * 2);
+
+        double left;
+        double width;
+
+        if (activeIndex == 0) {
+          left = 0;
+          width = sideWidth;
+        } else if (activeIndex == 1) {
+          left = sideWidth + spacing;
+          width = centerWidth;
+        } else {
+          left = sideWidth + spacing + centerWidth + spacing;
+          width = sideWidth;
+        }
+
+        return SizedBox(
+          height: barHeight,
+          child: Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 320),
+                curve: Curves.easeInOut,
+                left: left,
+                top: 0,
+                bottom: 0,
+                width: width,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF1FD38A),
+                        Color(0xFF14A86D),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1FD38A).withOpacity(0.35),
+                        blurRadius: 18,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  SizedBox(
+                    width: sideWidth,
+                    child: _ActionItem(
+                      icon: Icons.pause_rounded,
+                      label: 'Pause',
+                      onTap: onPause,
+                    ),
+                  ),
+                  const SizedBox(width: spacing),
+                  Expanded(
+                    child: _ActionItem(
+                      icon: Icons.play_arrow_rounded,
+                      label: startLabel,
+                      onTap: onStart,
+                    ),
+                  ),
+                  const SizedBox(width: spacing),
+                  SizedBox(
+                    width: sideWidth,
+                    child: _ActionItem(
+                      icon: Icons.refresh_rounded,
+                      label: 'Reset',
+                      onTap: onReset,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ActionItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
-  const _ActionButton({
-    required this.color,
+  const _ActionItem({
     required this.icon,
     required this.label,
     required this.onTap,
@@ -661,32 +735,25 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
-        child: Ink(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            color: color,
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: Colors.white, size: 34),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: onTap,
+      child: SizedBox(
+        height: 108,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 34),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -762,11 +829,12 @@ class _RingPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, basePaint);
 
-    final sweepAngle = 6.28318530718 * progress;
+    final remainingSweep = 6.28318530718 * progress;
+
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
       -1.5708,
-      sweepAngle,
+      remainingSweep,
       false,
       progressPaint,
     );
