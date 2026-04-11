@@ -10,6 +10,7 @@ class TaskItem {
   final bool isSkipped;
   final String reminderTime;
   final int focusMinutes;
+  final int priority; // 1 = low, 2 = medium, 3 = high
 
   TaskItem({
     required this.id,
@@ -19,6 +20,7 @@ class TaskItem {
     required this.isSkipped,
     required this.reminderTime,
     required this.focusMinutes,
+    required this.priority,
   });
 
   TaskItem copyWith({
@@ -29,6 +31,7 @@ class TaskItem {
     bool? isSkipped,
     String? reminderTime,
     int? focusMinutes,
+    int? priority,
   }) {
     return TaskItem(
       id: id ?? this.id,
@@ -38,6 +41,7 @@ class TaskItem {
       isSkipped: isSkipped ?? this.isSkipped,
       reminderTime: reminderTime ?? this.reminderTime,
       focusMinutes: focusMinutes ?? this.focusMinutes,
+      priority: priority ?? this.priority,
     );
   }
 
@@ -50,6 +54,7 @@ class TaskItem {
       isSkipped.toString(),
       reminderTime,
       focusMinutes.toString(),
+      priority.toString(),
     ].join('||');
   }
 
@@ -63,6 +68,7 @@ class TaskItem {
       isSkipped: parts.length > 4 ? parts[4] == 'true' : false,
       reminderTime: parts.length > 5 ? parts[5] : '',
       focusMinutes: parts.length > 6 ? int.tryParse(parts[6]) ?? 0 : 0,
+      priority: parts.length > 7 ? int.tryParse(parts[7]) ?? 2 : 2,
     );
   }
 }
@@ -75,7 +81,7 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  static const String storageKey = 'ts_tasks_v3';
+  static const String storageKey = 'ts_tasks_v4';
 
   final List<TaskItem> _tasks = [];
   SharedPreferences? _prefs;
@@ -94,6 +100,8 @@ class _TasksScreenState extends State<TasksScreen> {
       ..clear()
       ..addAll(data.map(TaskItem.fromStorage));
 
+    _sortTasks();
+
     if (mounted) {
       setState(() {});
     }
@@ -106,6 +114,18 @@ class _TasksScreenState extends State<TasksScreen> {
       storageKey,
       _tasks.map((e) => e.toStorage()).toList(),
     );
+  }
+
+  void _sortTasks() {
+    _tasks.sort((a, b) {
+      if (a.isDone != b.isDone) {
+        return a.isDone ? 1 : -1;
+      }
+      if (a.isSkipped != b.isSkipped) {
+        return a.isSkipped ? 1 : -1;
+      }
+      return b.priority.compareTo(a.priority);
+    });
   }
 
   int get _doneCount => _tasks.where((e) => e.isDone).length;
@@ -122,6 +142,8 @@ class _TasksScreenState extends State<TasksScreen> {
           ? existing.focusMinutes.toString()
           : '',
     );
+
+    int selectedPriority = existing?.priority ?? 2;
 
     TimeOfDay? selectedTime;
     if (existing != null && existing.reminderTime.isNotEmpty) {
@@ -207,6 +229,71 @@ class _TasksScreenState extends State<TasksScreen> {
                       controller: focusController,
                       numberOnly: true,
                     ),
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1B2E49),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Priority',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _priorityButton(
+                                  label: 'Low',
+                                  color: Colors.grey,
+                                  selected: selectedPriority == 1,
+                                  onTap: () {
+                                    setLocalState(() {
+                                      selectedPriority = 1;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _priorityButton(
+                                  label: 'Medium',
+                                  color: Colors.blue,
+                                  selected: selectedPriority == 2,
+                                  onTap: () {
+                                    setLocalState(() {
+                                      selectedPriority = 2;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _priorityButton(
+                                  label: 'High',
+                                  color: Colors.redAccent,
+                                  selected: selectedPriority == 3,
+                                  onTap: () {
+                                    setLocalState(() {
+                                      selectedPriority = 3;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -243,6 +330,7 @@ class _TasksScreenState extends State<TasksScreen> {
                           isSkipped: false,
                           reminderTime: reminderString,
                           focusMinutes: focusMinutes,
+                          priority: selectedPriority,
                         ),
                       );
                     } else {
@@ -254,11 +342,14 @@ class _TasksScreenState extends State<TasksScreen> {
                           note: note,
                           reminderTime: reminderString,
                           focusMinutes: focusMinutes,
+                          priority: selectedPriority,
                         );
                       }
                     }
 
+                    _sortTasks();
                     await _saveTasks();
+
                     if (mounted) {
                       setState(() {});
                     }
@@ -304,10 +395,42 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  Widget _priorityButton({
+    required String label,
+    required Color color,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: selected ? color.withOpacity(0.25) : Colors.white10,
+          border: Border.all(
+            color: selected ? color : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? color : Colors.white70,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
   TimeOfDay? _parseTime(String value) {
     try {
       final parts = value.split(' ');
       if (parts.length != 2) return null;
+
       final hm = parts[0].split(':');
       if (hm.length != 2) return null;
 
@@ -333,7 +456,9 @@ class _TasksScreenState extends State<TasksScreen> {
       isSkipped: false,
     );
 
+    _sortTasks();
     await _saveTasks();
+
     if (mounted) {
       setState(() {});
     }
@@ -348,7 +473,9 @@ class _TasksScreenState extends State<TasksScreen> {
       isDone: false,
     );
 
+    _sortTasks();
     await _saveTasks();
+
     if (mounted) {
       setState(() {});
     }
@@ -357,8 +484,35 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _deleteTask(TaskItem task) async {
     _tasks.removeWhere((e) => e.id == task.id);
     await _saveTasks();
+
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  Color _priorityColor(int priority) {
+    switch (priority) {
+      case 1:
+        return Colors.grey;
+      case 2:
+        return Colors.blue;
+      case 3:
+        return Colors.redAccent;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  String _priorityLabel(int priority) {
+    switch (priority) {
+      case 1:
+        return 'Low';
+      case 2:
+        return 'Medium';
+      case 3:
+        return 'High';
+      default:
+        return 'Medium';
     }
   }
 
@@ -503,9 +657,8 @@ class _TasksScreenState extends State<TasksScreen> {
       decoration: task.isDone || task.isSkipped
           ? TextDecoration.lineThrough
           : null,
-      decorationColor: task.isDone
-          ? const Color(0xFF20C08A)
-          : Colors.black,
+      decorationColor:
+          task.isDone ? const Color(0xFF20C08A) : Colors.black,
       decorationThickness: task.isDone ? 3 : 4,
     );
 
@@ -556,6 +709,11 @@ class _TasksScreenState extends State<TasksScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      _tag(
+                        Icons.flag_rounded,
+                        _priorityLabel(task.priority),
+                        _priorityColor(task.priority),
+                      ),
                       if (task.reminderTime.isNotEmpty)
                         _tag(
                           Icons.access_time_rounded,
