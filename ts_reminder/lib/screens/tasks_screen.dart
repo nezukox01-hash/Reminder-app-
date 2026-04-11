@@ -1,5 +1,6 @@
- import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:just_audio/just_audio.dart';
 import '../utils/colors.dart';
 
 class TaskItem {
@@ -84,12 +85,20 @@ class _TasksScreenState extends State<TasksScreen> {
   static const String storageKey = 'ts_tasks_v5';
 
   final List<TaskItem> _tasks = [];
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
   SharedPreferences? _prefs;
 
   @override
   void initState() {
     super.initState();
     _loadTasks();
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTasks() async {
@@ -171,6 +180,16 @@ class _TasksScreenState extends State<TasksScreen> {
   int get _skippedCount => _tasks.where((e) => e.isSkipped).length;
   int get _pendingCount =>
       _tasks.where((e) => !e.isDone && !e.isSkipped).length;
+
+  Future<void> _playMotivationAudio() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.setAsset('assets/audio/assistant/motivation_help_me.mp3');
+      await _audioPlayer.play();
+    } catch (_) {
+      // audio file না থাকলেও app crash করবে না
+    }
+  }
 
   Future<void> _openTaskDialog({TaskItem? existing}) async {
     final titleController =
@@ -487,6 +506,116 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
+  Future<bool?> _showHighPrioritySkipDialog(TaskItem task) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF102643),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text(
+            'Skip High Priority Task?',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            'Are you sure you want to skip this task?\n\nDo you have something urgent?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text(
+                'Skip Anyway',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4D88F8),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _showMotivationDialog();
+              },
+              child: const Text(
+                'Help Me',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showMotivationDialog() async {
+    await _playMotivationAudio();
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF102643),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text(
+            'Stay Focused',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            'You chose this task for a reason.\n\nJust start for 5 minutes. You can do it.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'Skip Anyway',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF20C08A),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text(
+                "Let's Do It",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _toggleTask(TaskItem task) async {
     final index = _tasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
@@ -505,133 +634,26 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _skipTask(TaskItem task) async {
-  // If HIGH priority → show warning dialog
-  if (task.priority == 3) {
-    final shouldSkip = await _showHighPrioritySkipDialog(task);
+    if (task.priority == 3) {
+      final shouldSkip = await _showHighPrioritySkipDialog(task);
+      if (shouldSkip != true) return;
+    }
 
-    if (shouldSkip != true) return;
+    final index = _tasks.indexWhere((e) => e.id == task.id);
+    if (index == -1) return;
+
+    _tasks[index] = task.copyWith(
+      isSkipped: true,
+      isDone: false,
+    );
+
+    _sortTasks();
+    await _saveTasks();
+
+    if (mounted) {
+      setState(() {});
+    }
   }
-
-  final index = _tasks.indexWhere((e) => e.id == task.id);
-  if (index == -1) return;
-
-  _tasks[index] = task.copyWith(
-    isSkipped: true,
-    isDone: false,
-  );
-
-  _sortTasks();
-  await _saveTasks();
-
-  if (mounted) {
-    setState(() {});
-  }
-}
-
-  Future<bool?> _showHighPrioritySkipDialog(TaskItem task) {
-  return showDialog<bool>(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        backgroundColor: const Color(0xFF102643),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        title: const Text(
-          'Skip High Priority Task?',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: const Text(
-          'Are you sure you want to skip this task?\n\nDo you have something urgent?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, false);
-            },
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white70),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, true);
-            },
-            child: const Text(
-              'Skip Anyway',
-              style: TextStyle(color: Colors.redAccent),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4D88F8),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _showMotivationDialog();
-            },
-            child: const Text(
-              'Help Me',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      );
-    },
-  );
-}
-  void _showMotivationDialog() {
-  showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        backgroundColor: const Color(0xFF102643),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        title: const Text(
-          'Stay Focused',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: const Text(
-          'You chose this task for a reason.\n\nJust start for 5 minutes. You can do it.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text(
-              'Skip Anyway',
-              style: TextStyle(color: Colors.redAccent),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF20C08A),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text(
-              "Let's Do It",
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      );
-    },
-  );
-}
 
   Future<void> _deleteTask(TaskItem task) async {
     _tasks.removeWhere((e) => e.id == task.id);
