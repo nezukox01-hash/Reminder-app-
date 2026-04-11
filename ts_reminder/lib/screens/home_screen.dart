@@ -9,6 +9,7 @@ import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
 import 'timer_screen.dart';
 import 'reminder_screen.dart';
+import 'tasks_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -192,11 +193,20 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-        const HomeCard(
-          title: 'Daily Tasks',
-          icon: Icons.check_circle_rounded,
-          color: AppColors.tasks,
-        ),
+        
+       HomeCard(
+  title: 'Daily Tasks',
+  icon: Icons.check_circle_rounded,
+  color: AppColors.tasks,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const TasksScreen(),
+      ),
+    );
+  },
+),
         const HomeCard(
           title: 'Motivation',
           icon: Icons.auto_awesome_rounded,
