@@ -1,10 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
 import '../utils/colors.dart';
 
 enum TimerPhase { focus, breakTime }
@@ -27,10 +23,6 @@ class _TimerScreenState extends State<TimerScreen>
   static const String breakMinutesKey = 'break_minutes';
   static const String completedSessionsKey = 'completed_focus_sessions';
   static const String totalStudySecondsKey = 'total_study_seconds';
-
-  final FlutterLocalNotificationsPlugin _notifications =
-      FlutterLocalNotificationsPlugin();
-  final AudioPlayer _player = AudioPlayer();
 
   SharedPreferences? _prefs;
   Timer? _ticker;
@@ -59,7 +51,6 @@ class _TimerScreenState extends State<TimerScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
-    _player.dispose();
     super.dispose();
   }
 
@@ -72,12 +63,6 @@ class _TimerScreenState extends State<TimerScreen>
   }
 
   Future<void> _initialize() async {
-    tz.initializeTimeZones();
-
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidInit);
-    await _notifications.initialize(initSettings);
-
     _prefs = await SharedPreferences.getInstance();
     await _restoreState();
   }
@@ -113,7 +98,9 @@ class _TimerScreenState extends State<TimerScreen>
           : _breakMinutes * 60;
     }
 
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _saveState() async {
@@ -178,7 +165,7 @@ class _TimerScreenState extends State<TimerScreen>
       final remain = ((_phaseEndMillis! - now) / 1000).ceil();
 
       if (remain <= 0) {
-        await _goToNextPhase();
+        _goToNextPhase();
       } else {
         if (mounted) {
           setState(() {
@@ -191,7 +178,7 @@ class _TimerScreenState extends State<TimerScreen>
     });
   }
 
-  Future<void> _startOrResumeTimer() async {
+  void _startOrResumeTimer() {
     if (_isRunning && !_isPaused) return;
 
     if (_isRunning && _isPaused) {
@@ -204,20 +191,16 @@ class _TimerScreenState extends State<TimerScreen>
     _phaseEndMillis =
         DateTime.now().millisecondsSinceEpoch + (_remainingSeconds * 1000);
 
-    if (mounted) setState(() {});
-
     _startTicker();
-    await _schedulePhaseNotification();
-    await _saveState();
 
-    if (_phase == TimerPhase.focus) {
-      await _playAudio('assets/audio/assistant/focus_started_sir.mp3');
-    } else {
-      await _playAudio('assets/audio/assistant/break_time_sir.mp3');
+    if (mounted) {
+      setState(() {});
     }
+
+    _saveState();
   }
 
-  Future<void> _pauseTimer() async {
+  void _pauseTimer() {
     if (!_isRunning || _isPaused || _phaseEndMillis == null) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -227,15 +210,15 @@ class _TimerScreenState extends State<TimerScreen>
     _isPaused = true;
     _ticker?.cancel();
 
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
 
-    await _notifications.cancel(101);
-    await _saveState();
+    _saveState();
   }
 
-  Future<void> _resetTimer() async {
+  void _resetTimer() {
     _ticker?.cancel();
-    await _notifications.cancel(101);
 
     _isRunning = false;
     _isPaused = false;
@@ -243,26 +226,22 @@ class _TimerScreenState extends State<TimerScreen>
     _phaseEndMillis = null;
     _remainingSeconds = _focusMinutes * 60;
 
-    if (mounted) setState(() {});
-    await _saveState();
+    if (mounted) {
+      setState(() {});
+    }
+
+    _saveState();
   }
 
-  Future<void> _goToNextPhase() async {
+  void _goToNextPhase() {
+    _ticker?.cancel();
+
     if (_phase == TimerPhase.focus) {
       _completedSessions += 1;
       _totalStudySeconds += _focusMinutes * 60;
-
-      await _playAudio('assets/audio/assistant/focus_session_complete_sir.mp3');
-
       _phase = TimerPhase.breakTime;
       _remainingSeconds = _breakMinutes * 60;
-
-      await _playAudio('assets/audio/assistant/break_time_sir.mp3');
     } else {
-      await _playAudio(
-        'assets/audio/assistant/break_is_over_back_to_work_sir.mp3',
-      );
-
       _phase = TimerPhase.focus;
       _remainingSeconds = _focusMinutes * 60;
     }
@@ -272,154 +251,102 @@ class _TimerScreenState extends State<TimerScreen>
     _phaseEndMillis =
         DateTime.now().millisecondsSinceEpoch + (_remainingSeconds * 1000);
 
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
 
     _startTicker();
-    await _schedulePhaseNotification();
-    await _saveState();
+    _saveState();
   }
 
-  Future<void> _schedulePhaseNotification() async {
-    if (_phaseEndMillis == null) return;
-
-    await _notifications.cancel(101);
-
-    const androidDetails = AndroidNotificationDetails(
-      'timer_channel',
-      'Timer Alerts',
-      channelDescription: 'Timer phase completion alerts',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-
-    final details = NotificationDetails(android: androidDetails);
-    final scheduledTime = DateTime.fromMillisecondsSinceEpoch(_phaseEndMillis!);
-
-    await _notifications.zonedSchedule(
-      101,
-      'TS Reminder',
-      _phase == TimerPhase.focus
-          ? 'Focus session complete, sir.'
-          : 'Break is over, sir. Back to work.',
-      tz.TZDateTime.from(scheduledTime, tz.local),
-      details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
-  }
-
-  Future<void> _playAudio(String assetPath) async {
-    try {
-      await _player.stop();
-      await _player.setAsset(assetPath);
-      await _player.play();
-    } catch (_) {}
-  }
-
-  Future<void> _openSettingsSheet() async {
+  Future<void> _openSettingsDialog() async {
     final focusController =
         TextEditingController(text: _focusMinutes.toString());
     final breakController =
         TextEditingController(text: _breakMinutes.toString());
 
-    await showModalBottomSheet(
+    await showDialog(
       context: context,
-      backgroundColor: const Color(0xFF0C2240),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            22,
-            20,
-            MediaQuery.of(context).viewInsets.bottom + 20,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF102643),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
           ),
-          child: Column(
+          title: const Text(
+            'Timer Settings',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Timer Settings',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                ),
+              _buildField(
+                label: 'Focus Minutes',
+                controller: focusController,
               ),
-              const SizedBox(height: 22),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildNumberField(
-                      label: 'Focus Minutes',
-                      controller: focusController,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildNumberField(
-                      label: 'Break Minutes',
-                      controller: breakController,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: 230,
-                height: 58,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4D88F8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                  ),
-                  onPressed: () async {
-                    final newFocus =
-                        int.tryParse(focusController.text.trim()) ?? 25;
-                    final newBreak =
-                        int.tryParse(breakController.text.trim()) ?? 5;
-
-                    _ticker?.cancel();
-                    await _notifications.cancel(101);
-
-                    _focusMinutes = newFocus <= 0 ? 25 : newFocus;
-                    _breakMinutes = newBreak <= 0 ? 5 : newBreak;
-                    _phase = TimerPhase.focus;
-                    _isRunning = false;
-                    _isPaused = false;
-                    _phaseEndMillis = null;
-                    _remainingSeconds = _focusMinutes * 60;
-
-                    if (mounted) setState(() {});
-                    await _saveState();
-
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                    }
-                  },
-                  child: const Text(
-                    'Save Settings',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
+              const SizedBox(height: 14),
+              _buildField(
+                label: 'Break Minutes',
+                controller: breakController,
               ),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4D88F8),
+              ),
+              onPressed: () async {
+                final newFocus =
+                    int.tryParse(focusController.text.trim()) ?? 25;
+                final newBreak =
+                    int.tryParse(breakController.text.trim()) ?? 5;
+
+                _ticker?.cancel();
+
+                _focusMinutes = newFocus <= 0 ? 25 : newFocus;
+                _breakMinutes = newBreak <= 0 ? 5 : newBreak;
+
+                _isRunning = false;
+                _isPaused = false;
+                _phase = TimerPhase.focus;
+                _phaseEndMillis = null;
+                _remainingSeconds = _focusMinutes * 60;
+
+                if (mounted) {
+                  setState(() {});
+                }
+
+                await _saveState();
+
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: const Text(
+                'Save',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildNumberField({
+  Widget _buildField({
     required String label,
     required TextEditingController controller,
   }) {
@@ -429,33 +356,24 @@ class _TimerScreenState extends State<TimerScreen>
         Text(
           label,
           style: const TextStyle(
-            color: Color(0xFFC7D2E2),
-            fontSize: 15,
+            color: Colors.white70,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
+          style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             filled: true,
             fillColor: const Color(0xFF1B2E49),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(22),
-              borderSide:
-                  const BorderSide(color: Color(0xFFC7D2E2), width: 1.3),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(22),
-              borderSide: const BorderSide(color: Colors.white, width: 1.5),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
             ),
           ),
         ),
@@ -509,7 +427,7 @@ class _TimerScreenState extends State<TimerScreen>
                       ),
                     ),
                     IconButton(
-                      onPressed: _openSettingsSheet,
+                      onPressed: _openSettingsDialog,
                       icon: const Icon(
                         Icons.tune_rounded,
                         color: Colors.white,
