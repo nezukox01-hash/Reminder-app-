@@ -5,36 +5,58 @@ import '../utils/colors.dart';
 class TaskItem {
   final String id;
   final String title;
+  final String note;
   final bool isDone;
+  final String reminderTime; // example: 07:30 PM
+  final int focusMinutes; // 0 হলে timer নাই
 
   TaskItem({
     required this.id,
     required this.title,
+    required this.note,
     required this.isDone,
+    required this.reminderTime,
+    required this.focusMinutes,
   });
 
   TaskItem copyWith({
     String? id,
     String? title,
+    String? note,
     bool? isDone,
+    String? reminderTime,
+    int? focusMinutes,
   }) {
     return TaskItem(
       id: id ?? this.id,
       title: title ?? this.title,
+      note: note ?? this.note,
       isDone: isDone ?? this.isDone,
+      reminderTime: reminderTime ?? this.reminderTime,
+      focusMinutes: focusMinutes ?? this.focusMinutes,
     );
   }
 
   String toStorage() {
-    return "$id||$title||$isDone";
+    return [
+      id,
+      title,
+      note,
+      isDone.toString(),
+      reminderTime,
+      focusMinutes.toString(),
+    ].join('||');
   }
 
   factory TaskItem.fromStorage(String value) {
-    final parts = value.split("||");
+    final parts = value.split('||');
     return TaskItem(
       id: parts[0],
-      title: parts[1],
-      isDone: parts[2] == 'true',
+      title: parts.length > 1 ? parts[1] : '',
+      note: parts.length > 2 ? parts[2] : '',
+      isDone: parts.length > 3 ? parts[3] == 'true' : false,
+      reminderTime: parts.length > 4 ? parts[4] : '',
+      focusMinutes: parts.length > 5 ? int.tryParse(parts[5]) ?? 0 : 0,
     );
   }
 }
@@ -47,7 +69,7 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  static const String storageKey = "ts_tasks";
+  static const String storageKey = 'ts_tasks_v2';
 
   final List<TaskItem> _tasks = [];
   SharedPreferences? _prefs;
@@ -72,98 +94,238 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _saveTasks() async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
-
-    final data = _tasks.map((e) => e.toStorage()).toList();
-    await prefs.setStringList(storageKey, data);
+    await prefs.setStringList(
+      storageKey,
+      _tasks.map((e) => e.toStorage()).toList(),
+    );
   }
 
-  Future<void> _addTaskDialog({TaskItem? existing}) async {
-    final controller =
+  int get _doneCount => _tasks.where((e) => e.isDone).length;
+  int get _pendingCount => _tasks.where((e) => !e.isDone).length;
+
+  Future<void> _openTaskDialog({TaskItem? existing}) async {
+    final titleController =
         TextEditingController(text: existing != null ? existing.title : '');
+    final noteController =
+        TextEditingController(text: existing != null ? existing.note : '');
+    final focusController = TextEditingController(
+      text: existing != null && existing.focusMinutes > 0
+          ? existing.focusMinutes.toString()
+          : '',
+    );
+
+    TimeOfDay? selectedTime;
+    if (existing != null && existing.reminderTime.isNotEmpty) {
+      final parsed = _parseTime(existing.reminderTime);
+      selectedTime = parsed;
+    }
 
     await showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF102643),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: Text(
-            existing == null ? "Add Task" : "Edit Task",
-            style: const TextStyle(color: Colors.white),
-          ),
-          content: TextField(
-            controller: controller,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: "Enter task...",
-              hintStyle: const TextStyle(color: Colors.white54),
-              filled: true,
-              fillColor: const Color(0xFF1B2E49),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF102643),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text("Cancel",
-                  style: TextStyle(color: Colors.white70)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final text = controller.text.trim();
-                if (text.isEmpty) return;
-
-                if (existing == null) {
-                  _tasks.add(
-                    TaskItem(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      title: text,
-                      isDone: false,
+              title: Text(
+                existing == null ? 'Add Task' : 'Edit Task',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildField(
+                      label: 'Task Title',
+                      controller: titleController,
                     ),
-                  );
-                } else {
-                  final index =
-                      _tasks.indexWhere((e) => e.id == existing.id);
-                  if (index != -1) {
-                    _tasks[index] = existing.copyWith(title: text);
-                  }
-                }
+                    const SizedBox(height: 14),
+                    _buildField(
+                      label: 'Note',
+                      controller: noteController,
+                    ),
+                    const SizedBox(height: 14),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: selectedTime ?? TimeOfDay.now(),
+                        );
+                        if (picked != null) {
+                          setLocalState(() {
+                            selectedTime = picked;
+                          });
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1B2E49),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.access_time_rounded,
+                                color: Colors.white),
+                            const SizedBox(width: 10),
+                            Text(
+                              selectedTime == null
+                                  ? 'Set Reminder Time'
+                                  : selectedTime!.format(context),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildField(
+                      label: 'Focus Timer Minutes (optional)',
+                      controller: focusController,
+                      numberOnly: true,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4D88F8),
+                  ),
+                  onPressed: () async {
+                    final title = titleController.text.trim();
+                    final note = noteController.text.trim();
+                    final focusMinutes =
+                        int.tryParse(focusController.text.trim()) ?? 0;
+                    final reminderString = selectedTime == null
+                        ? ''
+                        : selectedTime!.format(context);
 
-                await _saveTasks();
-                setState(() {});
-                Navigator.pop(dialogContext);
-              },
-              child: const Text("Save"),
-            )
-          ],
+                    if (title.isEmpty) return;
+
+                    if (existing == null) {
+                      _tasks.add(
+                        TaskItem(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          title: title,
+                          note: note,
+                          isDone: false,
+                          reminderTime: reminderString,
+                          focusMinutes: focusMinutes,
+                        ),
+                      );
+                    } else {
+                      final index =
+                          _tasks.indexWhere((e) => e.id == existing.id);
+                      if (index != -1) {
+                        _tasks[index] = existing.copyWith(
+                          title: title,
+                          note: note,
+                          reminderTime: reminderString,
+                          focusMinutes: focusMinutes,
+                        );
+                      }
+                    }
+
+                    await _saveTasks();
+                    setState(() {});
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
+                  },
+                  child: Text(
+                    existing == null ? 'Save' : 'Update',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  void _toggleTask(TaskItem task) async {
+  Widget _buildField({
+    required String label,
+    required TextEditingController controller,
+    bool numberOnly = false,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: numberOnly ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        filled: true,
+        fillColor: const Color(0xFF1B2E49),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  TimeOfDay? _parseTime(String value) {
+    try {
+      final parts = value.split(' ');
+      if (parts.length != 2) return null;
+      final hm = parts[0].split(':');
+      if (hm.length != 2) return null;
+
+      int hour = int.parse(hm[0]);
+      final minute = int.parse(hm[1]);
+      final suffix = parts[1].toUpperCase();
+
+      if (suffix == 'PM' && hour != 12) hour += 12;
+      if (suffix == 'AM' && hour == 12) hour = 0;
+
+      return TimeOfDay(hour: hour, minute: minute);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _toggleTask(TaskItem task) async {
     final index = _tasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
 
     _tasks[index] = task.copyWith(isDone: !task.isDone);
-
     await _saveTasks();
     setState(() {});
   }
 
-  void _deleteTask(TaskItem task) async {
+  Future<void> _deleteTask(TaskItem task) async {
     _tasks.removeWhere((e) => e.id == task.id);
     await _saveTasks();
     setState(() {});
   }
-
-  int get _doneCount => _tasks.where((e) => e.isDone).length;
-  int get _pendingCount => _tasks.where((e) => !e.isDone).length;
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +333,7 @@ class _TasksScreenState extends State<TasksScreen> {
       backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF4D88F8),
-        onPressed: () => _addTaskDialog(),
+        onPressed: () => _openTaskDialog(),
         child: const Icon(Icons.add),
       ),
       body: Container(
@@ -181,19 +343,17 @@ class _TasksScreenState extends State<TasksScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back,
-                          color: Colors.white),
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
                     ),
                     const Expanded(
                       child: Text(
-                        "Daily Tasks",
+                        'Daily Tasks',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 28,
@@ -201,30 +361,29 @@ class _TasksScreenState extends State<TasksScreen> {
                         ),
                       ),
                     ),
+                    IconButton(
+                      onPressed: () => _openTaskDialog(),
+                      icon: const Icon(Icons.add_task, color: Colors.white),
+                    ),
                   ],
                 ),
               ),
-
-              // Stats
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    _statBox("Pending", _pendingCount, Colors.orange),
+                    _statBox('Pending', _pendingCount, Colors.orange),
                     const SizedBox(width: 10),
-                    _statBox("Done", _doneCount, Colors.green),
+                    _statBox('Done', _doneCount, Colors.green),
                   ],
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // List
               Expanded(
                 child: _tasks.isEmpty
                     ? const Center(
                         child: Text(
-                          "No tasks yet",
+                          'No tasks yet',
                           style: TextStyle(color: Colors.white70),
                         ),
                       )
@@ -259,7 +418,7 @@ class _TasksScreenState extends State<TasksScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              "$value",
+              '$value',
               style: TextStyle(
                 color: color,
                 fontSize: 20,
@@ -282,6 +441,7 @@ class _TasksScreenState extends State<TasksScreen> {
           color: Colors.white.withOpacity(0.05),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
               onTap: () => _toggleTask(task),
@@ -294,34 +454,97 @@ class _TasksScreenState extends State<TasksScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                task.title,
-                style: TextStyle(
-                  color: Colors.white,
-                  decoration:
-                      task.isDone ? TextDecoration.lineThrough : null,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      color: task.isDone ? Colors.white54 : Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      decoration:
+                          task.isDone ? TextDecoration.lineThrough : null,
+                      decorationColor: const Color(0xFF20C08A),
+                      decorationThickness: 3,
+                    ),
+                  ),
+                  if (task.note.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      task.note,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (task.reminderTime.isNotEmpty)
+                        _tag(
+                          Icons.access_time_rounded,
+                          task.reminderTime,
+                          Colors.orange,
+                        ),
+                      if (task.focusMinutes > 0)
+                        _tag(
+                          Icons.timer_rounded,
+                          '${task.focusMinutes} min',
+                          const Color(0xFF20C08A),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
             PopupMenuButton(
               color: const Color(0xFF102643),
               onSelected: (value) {
-                if (value == 'edit') _addTaskDialog(existing: task);
+                if (value == 'edit') _openTaskDialog(existing: task);
                 if (value == 'delete') _deleteTask(task);
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(
-                    value: 'edit',
-                    child: Text("Edit",
-                        style: TextStyle(color: Colors.white))),
+                  value: 'edit',
+                  child: Text('Edit', style: TextStyle(color: Colors.white)),
+                ),
                 PopupMenuItem(
-                    value: 'delete',
-                    child: Text("Delete",
-                        style: TextStyle(color: Colors.white))),
+                  value: 'delete',
+                  child: Text('Delete', style: TextStyle(color: Colors.white)),
+                ),
               ],
-            )
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _tag(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: color.withOpacity(0.15),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
