@@ -7,14 +7,16 @@ class TaskItem {
   final String title;
   final String note;
   final bool isDone;
-  final String reminderTime; // example: 07:30 PM
-  final int focusMinutes; // 0 হলে timer নাই
+  final bool isSkipped;
+  final String reminderTime;
+  final int focusMinutes;
 
   TaskItem({
     required this.id,
     required this.title,
     required this.note,
     required this.isDone,
+    required this.isSkipped,
     required this.reminderTime,
     required this.focusMinutes,
   });
@@ -24,6 +26,7 @@ class TaskItem {
     String? title,
     String? note,
     bool? isDone,
+    bool? isSkipped,
     String? reminderTime,
     int? focusMinutes,
   }) {
@@ -32,6 +35,7 @@ class TaskItem {
       title: title ?? this.title,
       note: note ?? this.note,
       isDone: isDone ?? this.isDone,
+      isSkipped: isSkipped ?? this.isSkipped,
       reminderTime: reminderTime ?? this.reminderTime,
       focusMinutes: focusMinutes ?? this.focusMinutes,
     );
@@ -43,6 +47,7 @@ class TaskItem {
       title,
       note,
       isDone.toString(),
+      isSkipped.toString(),
       reminderTime,
       focusMinutes.toString(),
     ].join('||');
@@ -51,12 +56,13 @@ class TaskItem {
   factory TaskItem.fromStorage(String value) {
     final parts = value.split('||');
     return TaskItem(
-      id: parts[0],
+      id: parts.isNotEmpty ? parts[0] : '',
       title: parts.length > 1 ? parts[1] : '',
       note: parts.length > 2 ? parts[2] : '',
       isDone: parts.length > 3 ? parts[3] == 'true' : false,
-      reminderTime: parts.length > 4 ? parts[4] : '',
-      focusMinutes: parts.length > 5 ? int.tryParse(parts[5]) ?? 0 : 0,
+      isSkipped: parts.length > 4 ? parts[4] == 'true' : false,
+      reminderTime: parts.length > 5 ? parts[5] : '',
+      focusMinutes: parts.length > 6 ? int.tryParse(parts[6]) ?? 0 : 0,
     );
   }
 }
@@ -69,7 +75,7 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  static const String storageKey = 'ts_tasks_v2';
+  static const String storageKey = 'ts_tasks_v3';
 
   final List<TaskItem> _tasks = [];
   SharedPreferences? _prefs;
@@ -88,7 +94,9 @@ class _TasksScreenState extends State<TasksScreen> {
       ..clear()
       ..addAll(data.map(TaskItem.fromStorage));
 
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _saveTasks() async {
@@ -101,7 +109,8 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   int get _doneCount => _tasks.where((e) => e.isDone).length;
-  int get _pendingCount => _tasks.where((e) => !e.isDone).length;
+  int get _pendingCount =>
+      _tasks.where((e) => !e.isDone && !e.isSkipped).length;
 
   Future<void> _openTaskDialog({TaskItem? existing}) async {
     final titleController =
@@ -116,8 +125,7 @@ class _TasksScreenState extends State<TasksScreen> {
 
     TimeOfDay? selectedTime;
     if (existing != null && existing.reminderTime.isNotEmpty) {
-      final parsed = _parseTime(existing.reminderTime);
-      selectedTime = parsed;
+      selectedTime = _parseTime(existing.reminderTime);
     }
 
     await showDialog(
@@ -232,6 +240,7 @@ class _TasksScreenState extends State<TasksScreen> {
                           title: title,
                           note: note,
                           isDone: false,
+                          isSkipped: false,
                           reminderTime: reminderString,
                           focusMinutes: focusMinutes,
                         ),
@@ -250,7 +259,10 @@ class _TasksScreenState extends State<TasksScreen> {
                     }
 
                     await _saveTasks();
-                    setState(() {});
+                    if (mounted) {
+                      setState(() {});
+                    }
+
                     if (dialogContext.mounted) {
                       Navigator.pop(dialogContext);
                     }
@@ -316,15 +328,38 @@ class _TasksScreenState extends State<TasksScreen> {
     final index = _tasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
 
-    _tasks[index] = task.copyWith(isDone: !task.isDone);
+    _tasks[index] = task.copyWith(
+      isDone: !task.isDone,
+      isSkipped: false,
+    );
+
     await _saveTasks();
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _skipTask(TaskItem task) async {
+    final index = _tasks.indexWhere((e) => e.id == task.id);
+    if (index == -1) return;
+
+    _tasks[index] = task.copyWith(
+      isSkipped: true,
+      isDone: false,
+    );
+
+    await _saveTasks();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _deleteTask(TaskItem task) async {
     _tasks.removeWhere((e) => e.id == task.id);
     await _saveTasks();
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -372,21 +407,26 @@ class _TasksScreenState extends State<TasksScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    _statBox('Pending', _pendingCount, Colors.orange),
+                    _statBox(
+                      'Pending',
+                      _pendingCount,
+                      Colors.orange,
+                      Icons.access_time_filled_rounded,
+                    ),
                     const SizedBox(width: 10),
-                    _statBox('Done', _doneCount, Colors.green),
+                    _statBox(
+                      'Done',
+                      _doneCount,
+                      Colors.green,
+                      Icons.check_circle_rounded,
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
               Expanded(
                 child: _tasks.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No tasks yet',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      )
+                    ? const _EmptyTasksView()
                     : ListView.builder(
                         itemCount: _tasks.length,
                         itemBuilder: (context, index) {
@@ -402,28 +442,48 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  Widget _statBox(String title, int value, Color color) {
+  Widget _statBox(
+    String title,
+    int value,
+    Color color,
+    IconData icon,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           color: Colors.white.withOpacity(0.05),
         ),
-        child: Column(
+        child: Row(
           children: [
-            Text(
-              title,
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '$value',
-              style: TextStyle(
-                color: color,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+            Container(
+              height: 42,
+              width: 42,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withOpacity(0.18),
               ),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -432,6 +492,23 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Widget _taskTile(TaskItem task) {
+    final titleStyle = TextStyle(
+      color: task.isDone
+          ? Colors.white54
+          : task.isSkipped
+              ? Colors.white60
+              : Colors.white,
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      decoration: task.isDone || task.isSkipped
+          ? TextDecoration.lineThrough
+          : null,
+      decorationColor: task.isDone
+          ? const Color(0xFF20C08A)
+          : Colors.black,
+      decorationThickness: task.isDone ? 3 : 4,
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
       child: Container(
@@ -448,8 +525,14 @@ class _TasksScreenState extends State<TasksScreen> {
               child: Icon(
                 task.isDone
                     ? Icons.check_circle
-                    : Icons.radio_button_unchecked,
-                color: task.isDone ? Colors.green : Colors.white70,
+                    : task.isSkipped
+                        ? Icons.cancel
+                        : Icons.radio_button_unchecked,
+                color: task.isDone
+                    ? Colors.green
+                    : task.isSkipped
+                        ? Colors.redAccent
+                        : Colors.white70,
               ),
             ),
             const SizedBox(width: 12),
@@ -457,18 +540,7 @@ class _TasksScreenState extends State<TasksScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    task.title,
-                    style: TextStyle(
-                      color: task.isDone ? Colors.white54 : Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      decoration:
-                          task.isDone ? TextDecoration.lineThrough : null,
-                      decorationColor: const Color(0xFF20C08A),
-                      decorationThickness: 3,
-                    ),
-                  ),
+                  Text(task.title, style: titleStyle),
                   if (task.note.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text(
@@ -496,6 +568,12 @@ class _TasksScreenState extends State<TasksScreen> {
                           '${task.focusMinutes} min',
                           const Color(0xFF20C08A),
                         ),
+                      if (task.isSkipped)
+                        _tag(
+                          Icons.close_rounded,
+                          'Skipped',
+                          Colors.redAccent,
+                        ),
                     ],
                   ),
                 ],
@@ -505,12 +583,17 @@ class _TasksScreenState extends State<TasksScreen> {
               color: const Color(0xFF102643),
               onSelected: (value) {
                 if (value == 'edit') _openTaskDialog(existing: task);
+                if (value == 'skip') _skipTask(task);
                 if (value == 'delete') _deleteTask(task);
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(
                   value: 'edit',
                   child: Text('Edit', style: TextStyle(color: Colors.white)),
+                ),
+                PopupMenuItem(
+                  value: 'skip',
+                  child: Text('Skip', style: TextStyle(color: Colors.white)),
                 ),
                 PopupMenuItem(
                   value: 'delete',
@@ -545,6 +628,58 @@ class _TasksScreenState extends State<TasksScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyTasksView extends StatelessWidget {
+  const _EmptyTasksView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            gradient: const LinearGradient(
+              colors: [AppColors.surface2, AppColors.surface],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.task_alt_rounded,
+                color: Colors.white70,
+                size: 54,
+              ),
+              SizedBox(height: 16),
+              Text(
+                'No tasks yet',
+                style: TextStyle(
+                  color: AppColors.primaryText,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Tap the + button to add your first task.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
