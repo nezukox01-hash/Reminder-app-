@@ -43,7 +43,7 @@ class _TimerScreenState extends State<TimerScreen>
   int _breakMinutes = 5;
 
   int _remainingSeconds = 25 * 60;
-  int _completedFocusSessions = 0;
+  int _completedSessions = 0;
   int _totalStudySeconds = 0;
 
   int? _phaseEndMillis;
@@ -52,7 +52,7 @@ class _TimerScreenState extends State<TimerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _init();
+    _initialize();
   }
 
   @override
@@ -71,7 +71,7 @@ class _TimerScreenState extends State<TimerScreen>
     }
   }
 
-  Future<void> _init() async {
+  Future<void> _initialize() async {
     tz.initializeTimeZones();
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -96,7 +96,7 @@ class _TimerScreenState extends State<TimerScreen>
 
     _focusMinutes = prefs.getInt(focusMinutesKey) ?? 25;
     _breakMinutes = prefs.getInt(breakMinutesKey) ?? 5;
-    _completedFocusSessions = prefs.getInt(completedSessionsKey) ?? 0;
+    _completedSessions = prefs.getInt(completedSessionsKey) ?? 0;
     _totalStudySeconds = prefs.getInt(totalStudySecondsKey) ?? 0;
 
     _remainingSeconds = prefs.getInt(remainingKey) ??
@@ -129,7 +129,7 @@ class _TimerScreenState extends State<TimerScreen>
     await prefs.setInt(remainingKey, _remainingSeconds);
     await prefs.setInt(focusMinutesKey, _focusMinutes);
     await prefs.setInt(breakMinutesKey, _breakMinutes);
-    await prefs.setInt(completedSessionsKey, _completedFocusSessions);
+    await prefs.setInt(completedSessionsKey, _completedSessions);
     await prefs.setInt(totalStudySecondsKey, _totalStudySeconds);
 
     if (_phaseEndMillis != null) {
@@ -153,7 +153,7 @@ class _TimerScreenState extends State<TimerScreen>
 
     while (now >= end) {
       if (_phase == TimerPhase.focus) {
-        _completedFocusSessions += 1;
+        _completedSessions += 1;
         _totalStudySeconds += _focusMinutes * 60;
         _phase = TimerPhase.breakTime;
         end += _breakMinutes * 60 * 1000;
@@ -228,6 +228,7 @@ class _TimerScreenState extends State<TimerScreen>
     _ticker?.cancel();
 
     if (mounted) setState(() {});
+
     await _notifications.cancel(101);
     await _saveState();
   }
@@ -248,7 +249,7 @@ class _TimerScreenState extends State<TimerScreen>
 
   Future<void> _goToNextPhase() async {
     if (_phase == TimerPhase.focus) {
-      _completedFocusSessions += 1;
+      _completedSessions += 1;
       _totalStudySeconds += _focusMinutes * 60;
 
       await _playAudio('assets/audio/assistant/focus_session_complete_sir.mp3');
@@ -449,7 +450,8 @@ class _TimerScreenState extends State<TimerScreen>
                 const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(22),
-              borderSide: const BorderSide(color: Color(0xFFC7D2E2), width: 1.3),
+              borderSide:
+                  const BorderSide(color: Color(0xFFC7D2E2), width: 1.3),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(22),
@@ -477,6 +479,10 @@ class _TimerScreenState extends State<TimerScreen>
         : const Color(0xFFFFB347);
 
     final phaseLabel = _phase == TimerPhase.focus ? 'Focus' : 'Break';
+
+    final pauseActive = _isPaused;
+    final startActive = _isRunning && !_isPaused;
+    final resetActive = !_isRunning && !_isPaused;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -607,7 +613,7 @@ class _TimerScreenState extends State<TimerScreen>
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Session ${_completedFocusSessions + 1}',
+                              'Session ${_completedSessions + 1}',
                               style: const TextStyle(
                                 color: AppColors.secondaryText,
                                 fontSize: 16,
@@ -622,7 +628,9 @@ class _TimerScreenState extends State<TimerScreen>
                         children: [
                           Expanded(
                             child: _ActionButton(
-                              color: const Color(0xFF203A63),
+                              color: pauseActive
+                                  ? Colors.green
+                                  : const Color(0xFFE65C73),
                               icon: Icons.pause_rounded,
                               label: 'Pause',
                               onTap: _pauseTimer,
@@ -632,17 +640,20 @@ class _TimerScreenState extends State<TimerScreen>
                           Expanded(
                             flex: 2,
                             child: _ActionButton(
-                              color: const Color(0xFF4D88F8),
+                              color: startActive
+                                  ? Colors.green
+                                  : const Color(0xFFE65C73),
                               icon: Icons.play_arrow_rounded,
-                              label:
-                                  _isRunning && _isPaused ? 'Resume' : 'Start',
+                              label: _isPaused ? 'Resume' : 'Start',
                               onTap: _startOrResumeTimer,
                             ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
                             child: _ActionButton(
-                              color: const Color(0xFFE65C73),
+                              color: resetActive
+                                  ? Colors.green
+                                  : const Color(0xFFE65C73),
                               icon: Icons.refresh_rounded,
                               label: 'Reset',
                               onTap: _resetTimer,
@@ -680,7 +691,7 @@ class _TimerScreenState extends State<TimerScreen>
                       _SummaryItem(
                         icon: Icons.swap_horiz_rounded,
                         label: 'Completed Focus Sessions',
-                        value: '$_completedFocusSessions',
+                        value: '$_completedSessions',
                       ),
                       const SizedBox(height: 16),
                       _SummaryItem(
