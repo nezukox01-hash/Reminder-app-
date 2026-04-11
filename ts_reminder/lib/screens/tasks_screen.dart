@@ -12,7 +12,7 @@ class TaskItem {
   final bool isSkipped;
   final String reminderTime;
   final int focusMinutes;
-  final int priority;
+  final int priority; // 1 = low, 2 = medium, 3 = high
 
   TaskItem({
     required this.id,
@@ -111,7 +111,9 @@ class _TasksScreenState extends State<TasksScreen> {
 
     _sortTasks();
 
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _saveTasks() async {
@@ -123,114 +125,61 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  int _timeToMinutes(String reminderTime) {
+    if (reminderTime.isEmpty) return 999999;
+
+    try {
+      final parts = reminderTime.split(' ');
+      if (parts.length != 2) return 999999;
+
+      final hm = parts[0].split(':');
+      if (hm.length != 2) return 999999;
+
+      int hour = int.parse(hm[0]);
+      final minute = int.parse(hm[1]);
+      final suffix = parts[1].toUpperCase();
+
+      if (suffix == 'PM' && hour != 12) hour += 12;
+      if (suffix == 'AM' && hour == 12) hour = 0;
+
+      return hour * 60 + minute;
+    } catch (_) {
+      return 999999;
+    }
+  }
+
   void _sortTasks() {
-    _tasks.sort((a, b) => b.priority.compareTo(a.priority));
+    _tasks.sort((a, b) {
+      final aPending = !a.isDone && !a.isSkipped;
+      final bPending = !b.isDone && !b.isSkipped;
+
+      if (aPending != bPending) {
+        return aPending ? -1 : 1;
+      }
+
+      if (a.isDone != b.isDone) {
+        return a.isDone ? 1 : -1;
+      }
+
+      if (a.isSkipped != b.isSkipped) {
+        return a.isSkipped ? 1 : -1;
+      }
+
+      final aTime = _timeToMinutes(a.reminderTime);
+      final bTime = _timeToMinutes(b.reminderTime);
+
+      if (aTime != bTime) {
+        return aTime.compareTo(bTime);
+      }
+
+      return b.priority.compareTo(a.priority);
+    });
   }
 
   int get _doneCount => _tasks.where((e) => e.isDone).length;
   int get _skippedCount => _tasks.where((e) => e.isSkipped).length;
   int get _pendingCount =>
       _tasks.where((e) => !e.isDone && !e.isSkipped).length;
-
-  Future<void> _applySkipTask(TaskItem task) async {
-    final index = _tasks.indexWhere((e) => e.id == task.id);
-    if (index == -1) return;
-
-    _tasks[index] = task.copyWith(
-      isSkipped: true,
-      isDone: false,
-    );
-
-    await _saveTasks();
-    setState(() {});
-  }
-
-  Future<void> _showMotivationDialog(TaskItem task) async {
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) {
-        return SkipMotivationDialog(
-          onSkip: () => Navigator.pop(context, 'skip'),
-          onStartMagic: () => Navigator.pop(context, 'magic'),
-          onLetsDoIt: () => Navigator.pop(context, 'doit'),
-        );
-      },
-    );
-
-    if (result == 'skip') {
-      await _applySkipTask(task);
-    } else if (result == 'magic') {
-      _showMagicFiveBubble();
-    }
-  }
-
-  void _showMagicFiveBubble() {
-    _magicFiveEntry?.remove();
-
-    _magicFiveEntry = OverlayEntry(
-      builder: (_) => MagicFiveBubble(
-        onClose: () {
-          _magicFiveEntry?.remove();
-          _magicFiveEntry = null;
-        },
-      ),
-    );
-
-    Overlay.of(context).insert(_magicFiveEntry!);
-  }
-
-  Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF102643),
-          title: const Text('Skip High Priority Task?',
-              style: TextStyle(color: Colors.white)),
-          content: const Text(
-            'Are you sure?\nTap Help Me if needed.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'skip'),
-              child: const Text('Skip Anyway',
-                  style: TextStyle(color: Colors.redAccent)),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, 'help'),
-              child: const Text('Help Me'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == 'skip') {
-      await _applySkipTask(task);
-    } else if (result == 'help') {
-      await _showMotivationDialog(task);
-    }
-  }
-Future<void> _toggleTask(TaskItem task) async {
-    final index = _tasks.indexWhere((e) => e.id == task.id);
-    if (index == -1) return;
-
-    _tasks[index] = task.copyWith(
-      isDone: !task.isDone,
-      isSkipped: false,
-    );
-
-    await _saveTasks();
-    setState(() {});
-  }
-
-  Future<void> _deleteTask(TaskItem task) async {
-    _tasks.removeWhere((e) => e.id == task.id);
-    await _saveTasks();
-    setState(() {});
-  }
 
   Future<void> _openTaskDialog({TaskItem? existing}) async {
     final titleController =
@@ -244,7 +193,11 @@ Future<void> _toggleTask(TaskItem task) async {
     );
 
     int selectedPriority = existing?.priority ?? 2;
+
     TimeOfDay? selectedTime;
+    if (existing != null && existing.reminderTime.isNotEmpty) {
+      selectedTime = _parseTime(existing.reminderTime);
+    }
 
     await showDialog(
       context: context,
@@ -302,10 +255,8 @@ Future<void> _toggleTask(TaskItem task) async {
                         ),
                         child: Row(
                           children: [
-                            const Icon(
-                              Icons.access_time_rounded,
-                              color: Colors.white,
-                            ),
+                            const Icon(Icons.access_time_rounded,
+                                color: Colors.white),
                             const SizedBox(width: 10),
                             Text(
                               selectedTime == null
@@ -328,47 +279,69 @@ Future<void> _toggleTask(TaskItem task) async {
                       numberOnly: true,
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _priorityButton(
-                            label: 'Low',
-                            color: Colors.grey,
-                            selected: selectedPriority == 1,
-                            onTap: () {
-                              setLocalState(() {
-                                selectedPriority = 1;
-                              });
-                            },
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1B2E49),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Priority',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _priorityButton(
-                            label: 'Medium',
-                            color: Colors.blue,
-                            selected: selectedPriority == 2,
-                            onTap: () {
-                              setLocalState(() {
-                                selectedPriority = 2;
-                              });
-                            },
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _priorityButton(
+                                  label: 'Low',
+                                  color: Colors.grey,
+                                  selected: selectedPriority == 1,
+                                  onTap: () {
+                                    setLocalState(() {
+                                      selectedPriority = 1;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _priorityButton(
+                                  label: 'Medium',
+                                  color: Colors.blue,
+                                  selected: selectedPriority == 2,
+                                  onTap: () {
+                                    setLocalState(() {
+                                      selectedPriority = 2;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _priorityButton(
+                                  label: 'High',
+                                  color: Colors.redAccent,
+                                  selected: selectedPriority == 3,
+                                  onTap: () {
+                                    setLocalState(() {
+                                      selectedPriority = 3;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _priorityButton(
-                            label: 'High',
-                            color: Colors.redAccent,
-                            selected: selectedPriority == 3,
-                            onTap: () {
-                              setLocalState(() {
-                                selectedPriority = 3;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -425,14 +398,18 @@ Future<void> _toggleTask(TaskItem task) async {
 
                     _sortTasks();
                     await _saveTasks();
-                    setState(() {});
+
+                    if (mounted) {
+                      setState(() {});
+                    }
+
                     if (dialogContext.mounted) {
                       Navigator.pop(dialogContext);
                     }
                   },
-                  child: const Text(
-                    'Save',
-                    style: TextStyle(color: Colors.white),
+                  child: Text(
+                    existing == null ? 'Save' : 'Update',
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ],
@@ -496,6 +473,190 @@ Future<void> _toggleTask(TaskItem task) async {
         ),
       ),
     );
+  }
+
+  TimeOfDay? _parseTime(String value) {
+    try {
+      final parts = value.split(' ');
+      if (parts.length != 2) return null;
+
+      final hm = parts[0].split(':');
+      if (hm.length != 2) return null;
+
+      int hour = int.parse(hm[0]);
+      final minute = int.parse(hm[1]);
+      final suffix = parts[1].toUpperCase();
+
+      if (suffix == 'PM' && hour != 12) hour += 12;
+      if (suffix == 'AM' && hour == 12) hour = 0;
+
+      return TimeOfDay(hour: hour, minute: minute);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _showMagicFiveBubble() {
+    _magicFiveEntry?.remove();
+
+    _magicFiveEntry = OverlayEntry(
+      builder: (_) => MagicFiveBubble(
+        onClose: () {
+          _magicFiveEntry?.remove();
+          _magicFiveEntry = null;
+        },
+      ),
+    );
+
+    Overlay.of(context).insert(_magicFiveEntry!);
+  }
+
+  Future<void> _applySkipTask(TaskItem task) async {
+    final index = _tasks.indexWhere((e) => e.id == task.id);
+    if (index == -1) return;
+
+    _tasks[index] = task.copyWith(
+      isSkipped: true,
+      isDone: false,
+    );
+
+    _sortTasks();
+    await _saveTasks();
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
+  final result = await showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF102643),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: const Text(
+          'Skip High Priority Task?',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to skip this task?\n\nIf you need a little push, tap Help Me.',
+          style: TextStyle(
+            color: Colors.white70,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, 'cancel');
+            },
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, 'skip');
+            },
+            child: const Text(
+              'Skip Anyway',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4D88F8),
+            ),
+            onPressed: () {
+              Navigator.pop(context, 'help');
+            },
+            child: const Text(
+              'Help Me',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (result == 'skip') {
+    await _applySkipTask(task);
+  } else if (result == 'help') {
+    await _showMotivationDialog(task);
+  }
+}
+  
+  Future<void> _showMotivationDialog(TaskItem task) async {
+    if (!mounted) return;
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return SkipMotivationDialog(
+          onSkip: () {
+            Navigator.pop(context, 'skip');
+          },
+          onStartMagic: () {
+            Navigator.pop(context, 'magic');
+          },
+          onLetsDoIt: () {
+            Navigator.pop(context, 'doit');
+          },
+        );
+      },
+    );
+
+    if (result == 'skip') {
+      await _applySkipTask(task);
+    } else if (result == 'magic') {
+      _showMagicFiveBubble();
+    }
+  }
+
+  Future<void> _toggleTask(TaskItem task) async {
+    final index = _tasks.indexWhere((e) => e.id == task.id);
+    if (index == -1) return;
+
+    _tasks[index] = task.copyWith(
+      isDone: !task.isDone,
+      isSkipped: false,
+    );
+
+    _sortTasks();
+    await _saveTasks();
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _skipTask(TaskItem task) async {
+  if (task.priority == 3) {
+    await _showHighPrioritySkipWarning(task);
+    return;
+  }
+
+  await _applySkipTask(task);
+}
+
+  
+  Future<void> _deleteTask(TaskItem task) async {
+    _tasks.removeWhere((e) => e.id == task.id);
+    await _saveTasks();
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Color _priorityColor(int priority) {
@@ -866,13 +1027,3 @@ class _EmptyTasksView extends StatelessWidget {
     );
   }
 }
-  Future<void> _skipTask(TaskItem task) async {
-    if (task.priority == 3) {
-      await _showHighPrioritySkipWarning(task);
-      return;
-    }
-
-    await _applySkipTask(task);
-  }
-
-  
