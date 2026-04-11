@@ -61,7 +61,7 @@ class _SkipMotivationDialogState extends State<SkipMotivationDialog>
         final height = 14 + (value * 28);
 
         return Container(
-          width: 8,
+          width: 7,
           height: height,
           margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
@@ -123,9 +123,10 @@ class _SkipMotivationDialogState extends State<SkipMotivationDialog>
                 height: 1.5,
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(22),
