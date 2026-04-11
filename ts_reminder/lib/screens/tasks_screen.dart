@@ -528,6 +528,73 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
+Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
+  final result = await showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF102643),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: const Text(
+          'Skip High Priority Task?',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: const Text(
+          'Are you sure you want to skip this task?\n\nIf you need a little push, tap Help Me.',
+          style: TextStyle(
+            color: Colors.white70,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, 'cancel');
+            },
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, 'skip');
+            },
+            child: const Text(
+              'Skip Anyway',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4D88F8),
+            ),
+            onPressed: () {
+              Navigator.pop(context, 'help');
+            },
+            child: const Text(
+              'Help Me',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (result == 'skip') {
+    await _applySkipTask(task);
+  } else if (result == 'help') {
+    await _showMotivationDialog(task);
+  }
+}
+  
   Future<void> _showMotivationDialog(TaskItem task) async {
     if (!mounted) return;
 
@@ -574,13 +641,15 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _skipTask(TaskItem task) async {
-    if (task.priority == 3) {
-      await _showMotivationDialog(task);
-      return;
-    }
-
-    await _applySkipTask(task);
+  if (task.priority == 3) {
+    await _showHighPrioritySkipWarning(task);
+    return;
   }
+
+  await _applySkipTask(task);
+}
+
+  
   Future<void> _deleteTask(TaskItem task) async {
     _tasks.removeWhere((e) => e.id == task.id);
     await _saveTasks();
