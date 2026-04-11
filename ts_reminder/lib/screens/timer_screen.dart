@@ -142,11 +142,18 @@ class _TimerScreenState extends State<TimerScreen>
       if (_phase == TimerPhase.focus) {
         _completedSessions += 1;
         _totalStudySeconds += _focusMinutes * 60;
+
+        // focus ended -> auto start break
         _phase = TimerPhase.breakTime;
         end += _breakMinutes * 60 * 1000;
       } else {
+        // break ended -> stop and return to focus ready state
         _phase = TimerPhase.focus;
-        end += _focusMinutes * 60 * 1000;
+        _isRunning = false;
+        _isPaused = false;
+        _phaseEndMillis = null;
+        _remainingSeconds = _focusMinutes * 60;
+        return;
       }
     }
 
@@ -239,23 +246,33 @@ class _TimerScreenState extends State<TimerScreen>
     if (_phase == TimerPhase.focus) {
       _completedSessions += 1;
       _totalStudySeconds += _focusMinutes * 60;
+
+      // Auto start break
       _phase = TimerPhase.breakTime;
       _remainingSeconds = _breakMinutes * 60;
+      _isRunning = true;
+      _isPaused = false;
+      _phaseEndMillis =
+          DateTime.now().millisecondsSinceEpoch + (_remainingSeconds * 1000);
+
+      if (mounted) {
+        setState(() {});
+      }
+
+      _startTicker();
     } else {
+      // Break end -> STOP and return to focus ready state
       _phase = TimerPhase.focus;
       _remainingSeconds = _focusMinutes * 60;
+      _isRunning = false;
+      _isPaused = false;
+      _phaseEndMillis = null;
+
+      if (mounted) {
+        setState(() {});
+      }
     }
 
-    _isRunning = true;
-    _isPaused = false;
-    _phaseEndMillis =
-        DateTime.now().millisecondsSinceEpoch + (_remainingSeconds * 1000);
-
-    if (mounted) {
-      setState(() {});
-    }
-
-    _startTicker();
     _saveState();
   }
 
@@ -400,7 +417,7 @@ class _TimerScreenState extends State<TimerScreen>
 
     final pauseActive = _isPaused;
     final startActive = _isRunning && !_isPaused;
-    final resetActive = !_isRunning && !_isPaused;
+    final resetActive = false;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -644,28 +661,32 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: Ink(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          color: color,
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: Colors.white, size: 34),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            color: color,
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: Colors.white, size: 34),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
