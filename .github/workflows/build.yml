@@ -32,11 +32,11 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Build release APKs
-        run: flutter build apk --release --split-per-abi
+      - name: Build arm64 release APK
+        run: flutter build apk --release --target-platform android-arm64
 
-      - name: Upload APKs
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ts-reminder-release-apks
-          path: ts_reminder/build/app/outputs/flutter-apk/*.apk
+          name: ts-reminder-arm64-release
+          path: ts_reminder/build/app/outputs/flutter-apk/app-release.apk
