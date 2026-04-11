@@ -81,7 +81,7 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  static const String storageKey = 'ts_tasks_v4';
+  static const String storageKey = 'ts_tasks_v5';
 
   final List<TaskItem> _tasks = [];
   SharedPreferences? _prefs;
@@ -116,19 +116,59 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  int _timeToMinutes(String reminderTime) {
+    if (reminderTime.isEmpty) return 999999;
+
+    try {
+      final parts = reminderTime.split(' ');
+      if (parts.length != 2) return 999999;
+
+      final hm = parts[0].split(':');
+      if (hm.length != 2) return 999999;
+
+      int hour = int.parse(hm[0]);
+      final minute = int.parse(hm[1]);
+      final suffix = parts[1].toUpperCase();
+
+      if (suffix == 'PM' && hour != 12) hour += 12;
+      if (suffix == 'AM' && hour == 12) hour = 0;
+
+      return hour * 60 + minute;
+    } catch (_) {
+      return 999999;
+    }
+  }
+
   void _sortTasks() {
     _tasks.sort((a, b) {
+      final aPending = !a.isDone && !a.isSkipped;
+      final bPending = !b.isDone && !b.isSkipped;
+
+      if (aPending != bPending) {
+        return aPending ? -1 : 1;
+      }
+
       if (a.isDone != b.isDone) {
         return a.isDone ? 1 : -1;
       }
+
       if (a.isSkipped != b.isSkipped) {
         return a.isSkipped ? 1 : -1;
       }
+
+      final aTime = _timeToMinutes(a.reminderTime);
+      final bTime = _timeToMinutes(b.reminderTime);
+
+      if (aTime != bTime) {
+        return aTime.compareTo(bTime);
+      }
+
       return b.priority.compareTo(a.priority);
     });
   }
 
   int get _doneCount => _tasks.where((e) => e.isDone).length;
+  int get _skippedCount => _tasks.where((e) => e.isSkipped).length;
   int get _pendingCount =>
       _tasks.where((e) => !e.isDone && !e.isSkipped).length;
 
@@ -561,18 +601,31 @@ class _TasksScreenState extends State<TasksScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    _statBox(
-                      'Pending',
-                      _pendingCount,
-                      Colors.orange,
-                      Icons.access_time_filled_rounded,
+                    Expanded(
+                      child: _statBox(
+                        'Pending',
+                        _pendingCount,
+                        Colors.orange,
+                        Icons.access_time_filled_rounded,
+                      ),
                     ),
                     const SizedBox(width: 10),
-                    _statBox(
-                      'Done',
-                      _doneCount,
-                      Colors.green,
-                      Icons.check_circle_rounded,
+                    Expanded(
+                      child: _statBox(
+                        'Done',
+                        _doneCount,
+                        Colors.green,
+                        Icons.check_circle_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _statBox(
+                        'Skipped',
+                        _skippedCount,
+                        Colors.redAccent,
+                        Icons.cancel_rounded,
+                      ),
                     ),
                   ],
                 ),
@@ -602,45 +655,38 @@ class _TasksScreenState extends State<TasksScreen> {
     Color color,
     IconData icon,
   ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: Colors.white.withOpacity(0.05),
-        ),
-        child: Row(
-          children: [
-            Container(
-              height: 42,
-              width: 42,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withOpacity(0.18),
-              ),
-              child: Icon(icon, color: color),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withOpacity(0.05),
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 42,
+            width: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withOpacity(0.18),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$value',
+            style: TextStyle(
+              color: color,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -724,6 +770,12 @@ class _TasksScreenState extends State<TasksScreen> {
                         _tag(
                           Icons.timer_rounded,
                           '${task.focusMinutes} min',
+                          const Color(0xFF20C08A),
+                        ),
+                      if (task.isDone)
+                        _tag(
+                          Icons.check_circle_rounded,
+                          'Done',
                           const Color(0xFF20C08A),
                         ),
                       if (task.isSkipped)
