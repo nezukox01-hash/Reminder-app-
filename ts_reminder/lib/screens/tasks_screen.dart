@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:just_audio/just_audio.dart';
-import '../utils/colors.dart';
 import '../widgets/extra/skip_motivation_dialog.dart';
 import '../widgets/extra/magic_five_bubble.dart';
 
@@ -13,7 +11,7 @@ class TaskItem {
   final bool isSkipped;
   final String reminderTime;
   final int focusMinutes;
-  final int priority; // 1 = low, 2 = medium, 3 = high
+  final int priority;
 
   TaskItem({
     required this.id,
@@ -87,8 +85,6 @@ class _TasksScreenState extends State<TasksScreen> {
   static const String storageKey = 'ts_tasks_v5';
 
   final List<TaskItem> _tasks = [];
-  final AudioPlayer _audioPlayer = AudioPlayer();
-
   SharedPreferences? _prefs;
   OverlayEntry? _magicFiveEntry;
 
@@ -101,7 +97,6 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void dispose() {
     _magicFiveEntry?.remove();
-    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -184,117 +179,6 @@ class _TasksScreenState extends State<TasksScreen> {
   int get _skippedCount => _tasks.where((e) => e.isSkipped).length;
   int get _pendingCount =>
       _tasks.where((e) => !e.isDone && !e.isSkipped).length;
-
-  Future<void> _playMotivationAudio() async {
-    try {
-      await _audioPlayer.stop();
-      await _audioPlayer.setAsset(
-        'assets/audio/assistant/motivation_help_me.mp3',
-      );
-      await _audioPlayer.play();
-    } catch (_) {}
-  }
-
-  void _showMagicFiveBubble() {
-    _magicFiveEntry?.remove();
-
-    _magicFiveEntry = OverlayEntry(
-      builder: (_) => MagicFiveBubble(
-        onClose: () {
-          _magicFiveEntry?.remove();
-          _magicFiveEntry = null;
-        },
-      ),
-    );
-
-    Overlay.of(context).insert(_magicFiveEntry!);
-  }
-
-  Future<void> _showMotivationDialog() async {
-    await _playMotivationAudio();
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) {
-        return SkipMotivationDialog(
-          onSkip: () {
-            Navigator.pop(context, 'skip');
-          },
-          onStartMagic: () {
-            Navigator.pop(context, 'magic');
-          },
-          onLetsDoIt: () {
-            Navigator.pop(context, 'doit');
-          },
-        );
-      },
-    ).then((result) {
-      if (result == 'magic') {
-        _showMagicFiveBubble();
-      }
-    });
-  }
-
-  Future<bool?> _showHighPrioritySkipDialog(TaskItem task) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF102643),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: const Text(
-            'Skip High Priority Task?',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: const Text(
-            'Are you sure you want to skip this task?\n\nDo you have something urgent?',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
-              child: const Text(
-                'Skip Anyway',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4D88F8),
-              ),
-              onPressed: () async {
-                Navigator.pop(context, false);
-                await _showMotivationDialog();
-              },
-              child: const Text(
-                'Help Me',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   Future<void> _openTaskDialog({TaskItem? existing}) async {
     final titleController =
@@ -613,6 +497,47 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
+  Future<void> _showMotivationDialog() async {
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return SkipMotivationDialog(
+          onSkip: () {
+            Navigator.pop(context, 'skip');
+          },
+          onStartMagic: () {
+            Navigator.pop(context, 'magic');
+          },
+          onLetsDoIt: () {
+            Navigator.pop(context, 'doit');
+          },
+        );
+      },
+    ).then((result) {
+      if (result == 'magic') {
+        _showMagicFiveBubble();
+      }
+    });
+  }
+
+  void _showMagicFiveBubble() {
+    _magicFiveEntry?.remove();
+
+    _magicFiveEntry = OverlayEntry(
+      builder: (_) => MagicFiveBubble(
+        onClose: () {
+          _magicFiveEntry?.remove();
+          _magicFiveEntry = null;
+        },
+      ),
+    );
+
+    Overlay.of(context).insert(_magicFiveEntry!);
+  }
+
   Future<void> _toggleTask(TaskItem task) async {
     final index = _tasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
@@ -632,8 +557,8 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Future<void> _skipTask(TaskItem task) async {
     if (task.priority == 3) {
-      final shouldSkip = await _showHighPrioritySkipDialog(task);
-      if (shouldSkip != true) return;
+      await _showMotivationDialog();
+      return;
     }
 
     final index = _tasks.indexWhere((e) => e.id == task.id);
@@ -688,130 +613,234 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFF06264A),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF4D88F8),
         onPressed: () => _openTaskDialog(),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: AppColors.pageGradient,
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Daily Tasks',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    const Expanded(
+                  ),
+                  const Icon(
+                    Icons.playlist_add_check_circle_outlined,
+                    color: Colors.white,
+                  ),
+                ],
+              ),
+            ),
+
+            /// TOP STATS (3 in one row)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _statBox(
+                      'Pending',
+                      _pendingCount,
+                      Colors.orange,
+                      Icons.access_time,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _statBox(
+                      'Done',
+                      _doneCount,
+                      Colors.green,
+                      Icons.check_circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _statBox(
+                      'Skipped',
+                      _skippedCount,
+                      Colors.redAccent,
+                      Icons.cancel,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            Expanded(
+              child: _tasks.isEmpty
+                  ? const Center(
                       child: Text(
-                        'Daily Tasks',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        'No tasks yet',
+                        style: TextStyle(color: Colors.white70),
                       ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _tasks.length,
+                      itemBuilder: (context, index) {
+                        final task = _tasks[index];
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF163761),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              GestureDetector(
+                                onTap: () => _toggleTask(task),
+                                child: Icon(
+                                  task.isDone
+                                      ? Icons.check_circle
+                                      : task.isSkipped
+                                          ? Icons.cancel
+                                          : Icons.radio_button_unchecked,
+                                  color: task.isDone
+                                      ? Colors.green
+                                      : task.isSkipped
+                                          ? Colors.redAccent
+                                          : Colors.white70,
+                                ),
+                              ),
+
+                              const SizedBox(width: 12),
+
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      task.title,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        decoration:
+                                            task.isDone || task.isSkipped
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                      ),
+                                    ),
+
+                                    if (task.note.isNotEmpty)
+                                      Text(
+                                        task.note,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+
+                                    const SizedBox(height: 10),
+
+                                    Wrap(
+                                      spacing: 8,
+                                      children: [
+                                        _tag(
+                                          Icons.flag,
+                                          _priorityLabel(task.priority),
+                                          _priorityColor(task.priority),
+                                        ),
+                                        if (task.reminderTime.isNotEmpty)
+                                          _tag(
+                                            Icons.access_time,
+                                            task.reminderTime,
+                                            Colors.orange,
+                                          ),
+                                        if (task.focusMinutes > 0)
+                                          _tag(
+                                            Icons.timer,
+                                            '${task.focusMinutes} min',
+                                            Colors.green,
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              /// 🔥 FIXED WHITE 3-DOT MENU
+                              PopupMenuButton(
+                                icon: const Icon(
+                                  Icons.more_vert,
+                                  color: Colors.white, // ✅ FIXED
+                                ),
+                                color: const Color(0xFF102643),
+                                onSelected: (value) {
+                                  if (value == 'skip') {
+                                    _skipTask(task);
+                                  }
+                                  if (value == 'delete') {
+                                    _deleteTask(task);
+                                  }
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                    value: 'skip',
+                                    child: Text(
+                                      'Skip',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text(
+                                      'Delete',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                    IconButton(
-                      onPressed: () => _openTaskDialog(),
-                      icon: const Icon(Icons.add_task, color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _statBox(
-                        'Pending',
-                        _pendingCount,
-                        Colors.orange,
-                        Icons.access_time_filled_rounded,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _statBox(
-                        'Done',
-                        _doneCount,
-                        Colors.green,
-                        Icons.check_circle_rounded,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _statBox(
-                        'Skipped',
-                        _skippedCount,
-                        Colors.redAccent,
-                        Icons.cancel_rounded,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: _tasks.isEmpty
-                    ? const _EmptyTasksView()
-                    : ListView.builder(
-                        itemCount: _tasks.length,
-                        itemBuilder: (context, index) {
-                          final task = _tasks[index];
-                          return _taskTile(task);
-                        },
-                      ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _statBox(
-    String title,
-    int value,
-    Color color,
-    IconData icon,
-  ) {
+      String title, int value, Color color, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
+        color: const Color(0xFF163761),
         borderRadius: BorderRadius.circular(18),
-        color: Colors.white.withOpacity(0.05),
       ),
       child: Column(
         children: [
-          Container(
-            height: 42,
-            width: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.18),
-            ),
-            child: Icon(icon, color: color),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(color: Colors.white70),
-          ),
-          const SizedBox(height: 4),
+          Icon(icon, color: color),
+          const SizedBox(height: 6),
+          Text(title, style: const TextStyle(color: Colors.white70)),
           Text(
             '$value',
             style: TextStyle(
               color: color,
-              fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -820,205 +849,27 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  Widget _taskTile(TaskItem task) {
-    final titleStyle = TextStyle(
-      color: task.isDone
-          ? Colors.white54
-          : task.isSkipped
-              ? Colors.white60
-              : Colors.white,
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-      decoration: task.isDone || task.isSkipped
-          ? TextDecoration.lineThrough
-          : null,
-      decorationColor:
-          task.isDone ? const Color(0xFF20C08A) : Colors.black,
-      decorationThickness: task.isDone ? 3 : 4,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: Colors.white.withOpacity(0.05),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: () => _toggleTask(task),
-              child: Icon(
-                task.isDone
-                    ? Icons.check_circle
-                    : task.isSkipped
-                        ? Icons.cancel
-                        : Icons.radio_button_unchecked,
-                color: task.isDone
-                    ? Colors.green
-                    : task.isSkipped
-                        ? Colors.redAccent
-                        : Colors.white70,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(task.title, style: titleStyle),
-                  if (task.note.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      task.note,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _tag(
-                        Icons.flag_rounded,
-                        _priorityLabel(task.priority),
-                        _priorityColor(task.priority),
-                      ),
-                      if (task.reminderTime.isNotEmpty)
-                        _tag(
-                          Icons.access_time_rounded,
-                          task.reminderTime,
-                          Colors.orange,
-                        ),
-                      if (task.focusMinutes > 0)
-                        _tag(
-                          Icons.timer_rounded,
-                          '${task.focusMinutes} min',
-                          const Color(0xFF20C08A),
-                        ),
-                      if (task.isDone)
-                        _tag(
-                          Icons.check_circle_rounded,
-                          'Done',
-                          const Color(0xFF20C08A),
-                        ),
-                      if (task.isSkipped)
-                        _tag(
-                          Icons.close_rounded,
-                          'Skipped',
-                          Colors.redAccent,
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            PopupMenuButton(
-              color: const Color(0xFF102643),
-              onSelected: (value) {
-                if (value == 'edit') _openTaskDialog(existing: task);
-                if (value == 'skip') _skipTask(task);
-                if (value == 'delete') _deleteTask(task);
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Text('Edit', style: TextStyle(color: Colors.white)),
-                ),
-                PopupMenuItem(
-                  value: 'skip',
-                  child: Text('Skip', style: TextStyle(color: Colors.white)),
-                ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Text('Delete', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _tag(IconData icon, String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: color.withOpacity(0.15),
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
               color: color,
               fontSize: 12,
-              fontWeight: FontWeight.w700,
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _EmptyTasksView extends StatelessWidget {
-  const _EmptyTasksView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
-            gradient: const LinearGradient(
-              colors: [AppColors.surface2, AppColors.surface],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.task_alt_rounded,
-                color: Colors.white70,
-                size: 54,
-              ),
-              SizedBox(height: 16),
-              Text(
-                'No tasks yet',
-                style: TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Tap the + button to add your first task.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
