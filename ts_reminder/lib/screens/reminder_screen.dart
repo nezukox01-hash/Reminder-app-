@@ -129,29 +129,22 @@ class _ReminderScreenState extends State<ReminderScreen> {
     _lastSnapshot = data.join('###');
   }
 
-  int _timeToMinutes(String reminderTime) {
-    if (reminderTime.isEmpty) return 999999;
+int _timeToMinutes(String reminderTime) {
+  if (reminderTime.isEmpty) return 999999;
 
-    try {
-      final parts = reminderTime.split(' ');
-      if (parts.length != 2) return 999999;
+  try {
+    final parts = reminderTime.split(':');
+    if (parts.length != 2) return 999999;
 
-      final hm = parts[0].split(':');
-      if (hm.length != 2) return 999999;
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
 
-      int hour = int.parse(hm[0]);
-      final minute = int.parse(hm[1]);
-      final suffix = parts[1].toUpperCase();
-
-      if (suffix == 'PM' && hour != 12) hour += 12;
-      if (suffix == 'AM' && hour == 12) hour = 0;
-
-      return hour * 60 + minute;
-    } catch (_) {
-      return 999999;
-    }
+    return hour * 60 + minute;
+  } catch (_) {
+    return 999999;
   }
-
+}
+  
   void _sortTasks() {
     _allTasks.sort((a, b) {
       final aTime = _timeToMinutes(a.reminderTime);
