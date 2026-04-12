@@ -363,9 +363,9 @@ class _TasksScreenState extends State<TasksScreen> {
                     final note = noteController.text.trim();
                     final focusMinutes =
                         int.tryParse(focusController.text.trim()) ?? 0;
-                    final reminderString = selectedTime == null
-                        ? ''
-                        : selectedTime!.format(context);
+                   final reminderString = selectedTime == null
+    ? ''
+    : '${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}';
 
                     if (title.isEmpty) return;
 
