@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../utils/colors.dart';
-import '../widgets/extra/skip_motivation_dialog.dart';
-import '../widgets/extra/magic_five_bubble.dart';
+
 import '../services/task_reminder_service.dart';
+import '../utils/colors.dart';
+import '../widgets/extra/magic_five_bubble.dart';
+import '../widgets/extra/skip_motivation_dialog.dart';
 
 class TaskItem {
   final String id;
@@ -126,21 +127,21 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-int _timeToMinutes(String reminderTime) {
-  if (reminderTime.isEmpty) return 999999;
+  int _timeToMinutes(String reminderTime) {
+    if (reminderTime.isEmpty) return 999999;
 
-  try {
-    final parts = reminderTime.split(':');
-    if (parts.length != 2) return 999999;
+    try {
+      final parts = reminderTime.split(':');
+      if (parts.length != 2) return 999999;
 
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
 
-    return hour * 60 + minute;
-  } catch (_) {
-    return 999999;
+      return hour * 60 + minute;
+    } catch (_) {
+      return 999999;
+    }
   }
-}
 
   void _sortTasks() {
     _tasks.sort((a, b) {
@@ -174,6 +175,19 @@ int _timeToMinutes(String reminderTime) {
   int get _skippedCount => _tasks.where((e) => e.isSkipped).length;
   int get _pendingCount =>
       _tasks.where((e) => !e.isDone && !e.isSkipped).length;
+
+  Future<void> _scheduleIfNeeded(TaskItem task) async {
+    await TaskReminderService.cancelTaskReminder(task.id);
+
+    if (task.reminderTime.isEmpty || task.isDone || task.isSkipped) return;
+
+    await TaskReminderService.scheduleTaskReminder(
+      taskId: task.id,
+      title: 'Task Reminder',
+      body: task.title,
+      reminderTime: task.reminderTime,
+    );
+  }
 
   Future<void> _openTaskDialog({TaskItem? existing}) async {
     final titleController =
@@ -249,8 +263,10 @@ int _timeToMinutes(String reminderTime) {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.access_time_rounded,
-                                color: Colors.white),
+                            const Icon(
+                              Icons.access_time_rounded,
+                              color: Colors.white,
+                            ),
                             const SizedBox(width: 10),
                             Text(
                               selectedTime == null
@@ -357,56 +373,44 @@ int _timeToMinutes(String reminderTime) {
                     final note = noteController.text.trim();
                     final focusMinutes =
                         int.tryParse(focusController.text.trim()) ?? 0;
-                   final reminderString = selectedTime == null
-    ? ''
-    : '${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}';
+                    final reminderString = selectedTime == null
+                        ? ''
+                        : '${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}';
 
                     if (title.isEmpty) return;
 
+                    TaskItem savedTask;
+
                     if (existing == null) {
-                      _tasks.add(
-                        TaskItem(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          title: title,
-                          note: note,
-                          isDone: false,
-                          isSkipped: false,
-                          reminderTime: reminderString,
-                          focusMinutes: focusMinutes,
-                          priority: selectedPriority,
-                        ),
+                      savedTask = TaskItem(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        title: title,
+                        note: note,
+                        isDone: false,
+                        isSkipped: false,
+                        reminderTime: reminderString,
+                        focusMinutes: focusMinutes,
+                        priority: selectedPriority,
                       );
+                      _tasks.add(savedTask);
                     } else {
                       final index =
                           _tasks.indexWhere((e) => e.id == existing.id);
-                      if (index != -1) {
-                        _tasks[index] = existing.copyWith(
-                          title: title,
-                          note: note,
-                          reminderTime: reminderString,
-                          focusMinutes: focusMinutes,
-                          priority: selectedPriority,
-                        );
-                      }
+                      if (index == -1) return;
+
+                      savedTask = existing.copyWith(
+                        title: title,
+                        note: note,
+                        reminderTime: reminderString,
+                        focusMinutes: focusMinutes,
+                        priority: selectedPriority,
+                      );
+                      _tasks[index] = savedTask;
                     }
 
                     _sortTasks();
                     await _saveTasks();
-                    
-                    if (reminderString.isNotEmpty) {
-  final savedTask = existing == null
-      ? _tasks.last
-      : _tasks.firstWhere((e) => e.id == existing.id);
-
-  if (!savedTask.isDone && !savedTask.isSkipped) {
-    await TaskReminderService.scheduleTaskReminder(
-      taskId: savedTask.id,
-      title: 'Task Reminder',
-      body: savedTask.title,
-      reminderTime: savedTask.reminderTime,
-    );
-  }
-}
+                    await _scheduleIfNeeded(savedTask);
 
                     if (mounted) {
                       setState(() {});
@@ -485,18 +489,18 @@ int _timeToMinutes(String reminderTime) {
   }
 
   TimeOfDay? _parseTime(String value) {
-  try {
-    final parts = value.split(':');
-    if (parts.length != 2) return null;
+    try {
+      final parts = value.split(':');
+      if (parts.length != 2) return null;
 
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
 
-    return TimeOfDay(hour: hour, minute: minute);
-  } catch (_) {
-    return null;
+      return TimeOfDay(hour: hour, minute: minute);
+    } catch (_) {
+      return null;
+    }
   }
-}
 
   void _showMagicFiveBubble() {
     _magicFiveEntry?.remove();
@@ -513,93 +517,91 @@ int _timeToMinutes(String reminderTime) {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
-Future<void> _applySkipTask(TaskItem task) async {
-  final index = _tasks.indexWhere((e) => e.id == task.id);
-  if (index == -1) return;
+  Future<void> _applySkipTask(TaskItem task) async {
+    final index = _tasks.indexWhere((e) => e.id == task.id);
+    if (index == -1) return;
 
-  _tasks[index] = task.copyWith(
-    isSkipped: true,
-    isDone: false,
-  );
+    _tasks[index] = task.copyWith(
+      isSkipped: true,
+      isDone: false,
+    );
 
-  _sortTasks();
-  await _saveTasks();
+    _sortTasks();
+    await _saveTasks();
+    await TaskReminderService.cancelTaskReminder(task.id);
 
-  // 🔥 ADD THIS LINE RIGHT HERE
-  await TaskReminderService.cancelTaskReminder(task.id);
-
-  if (mounted) {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
-}
 
-Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
-  final result = await showDialog<String>(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) {
-      return AlertDialog(
-        backgroundColor: const Color(0xFF102643),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        title: const Text(
-          'Skip High Priority Task?',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
+  Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF102643),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
           ),
-        ),
-        content: const Text(
-          'Are you sure you want to skip this task?\n\nIf you need a little push, tap Help Me.',
-          style: TextStyle(
-            color: Colors.white70,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, 'cancel');
-            },
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white70),
+          title: const Text(
+            'Skip High Priority Task?',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, 'skip');
-            },
-            child: const Text(
-              'Skip Anyway',
-              style: TextStyle(color: Colors.redAccent),
+          content: const Text(
+            'Are you sure you want to skip this task?\n\nIf you need a little push, tap Help Me.',
+            style: TextStyle(
+              color: Colors.white70,
+              height: 1.5,
             ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4D88F8),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, 'cancel');
+              },
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
             ),
-            onPressed: () {
-              Navigator.pop(context, 'help');
-            },
-            child: const Text(
-              'Help Me',
-              style: TextStyle(color: Colors.white),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, 'skip');
+              },
+              child: const Text(
+                'Skip Anyway',
+                style: TextStyle(color: Colors.redAccent),
+              ),
             ),
-          ),
-        ],
-      );
-    },
-  );
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4D88F8),
+              ),
+              onPressed: () {
+                Navigator.pop(context, 'help');
+              },
+              child: const Text(
+                'Help Me',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
 
-  if (result == 'skip') {
-    await _applySkipTask(task);
-  } else if (result == 'help') {
-    await _showMotivationDialog(task);
+    if (result == 'skip') {
+      await _applySkipTask(task);
+    } else if (result == 'help') {
+      await _showMotivationDialog(task);
+    }
   }
-}
-  
+
   Future<void> _showMotivationDialog(TaskItem task) async {
     if (!mounted) return;
 
@@ -639,19 +641,9 @@ Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
 
     _sortTasks();
     await _saveTasks();
-    
-    final updatedTask = _tasks[index];
 
-if (updatedTask.isDone) {
-  await TaskReminderService.cancelTaskReminder(updatedTask.id);
-} else if (updatedTask.reminderTime.isNotEmpty && !updatedTask.isSkipped) {
-  await TaskReminderService.scheduleTaskReminder(
-    taskId: updatedTask.id,
-    title: 'Task Reminder',
-    body: updatedTask.title,
-    reminderTime: updatedTask.reminderTime,
-  );
-}
+    final updatedTask = _tasks[index];
+    await _scheduleIfNeeded(updatedTask);
 
     if (mounted) {
       setState(() {});
@@ -659,24 +651,50 @@ if (updatedTask.isDone) {
   }
 
   Future<void> _skipTask(TaskItem task) async {
-  if (task.priority == 3) {
-    await _showHighPrioritySkipWarning(task);
-    return;
+    if (task.priority == 3) {
+      await _showHighPrioritySkipWarning(task);
+      return;
+    }
+
+    await _applySkipTask(task);
   }
 
-  await _applySkipTask(task);
-}
+  Future<void> _deleteTask(TaskItem task) async {
+    _tasks.removeWhere((e) => e.id == task.id);
+    await _saveTasks();
+    await TaskReminderService.cancelTaskReminder(task.id);
 
-  
-Future<void> _deleteTask(TaskItem task) async {
-  _tasks.removeWhere((e) => e.id == task.id);
-  await _saveTasks();
-  await TaskReminderService.cancelTaskReminder(task.id);
-
-  if (mounted) {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
-}
+
+  Color _priorityColor(int priority) {
+    switch (priority) {
+      case 1:
+        return Colors.grey;
+      case 2:
+        return Colors.blue;
+      case 3:
+        return Colors.redAccent;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  String _priorityLabel(int priority) {
+    switch (priority) {
+      case 1:
+        return 'Low';
+      case 2:
+        return 'Medium';
+      case 3:
+        return 'High';
+      default:
+        return 'Medium';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -910,7 +928,7 @@ Future<void> _deleteTask(TaskItem task) async {
                 ],
               ),
             ),
-            PopupMenuButton(
+            PopupMenuButton<String>(
               icon: const Icon(
                 Icons.more_vert,
                 color: Colors.white,
