@@ -517,23 +517,24 @@ class _TasksScreenState extends State<TasksScreen> {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
-  Future<void> _applySkipTask(TaskItem task) async {
-    final index = _tasks.indexWhere((e) => e.id == task.id);
-    if (index == -1) return;
+Future<void> _applySkipTask(TaskItem task) async {
+  final index = _tasks.indexWhere((e) => e.id == task.id);
+  if (index == -1) return;
 
-    _tasks[index] = task.copyWith(
-      isSkipped: true,
-      isDone: false,
-    );
+  _tasks[index] = task.copyWith(
+    isSkipped: true,
+    isDone: false,
+  );
 
-    _sortTasks();
-    await _saveTasks();
-    await TaskReminderService.cancelTaskReminder(task.id);
+  _sortTasks();
 
-    if (mounted) {
-      setState(() {});
-    }
+  if (mounted) {
+    setState(() {});
   }
+
+  await _saveTasks();
+  TaskReminderService.cancelTaskReminder(task.id);
+}
 
   Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
     final result = await showDialog<String>(
@@ -630,25 +631,25 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  Future<void> _toggleTask(TaskItem task) async {
-    final index = _tasks.indexWhere((e) => e.id == task.id);
-    if (index == -1) return;
+Future<void> _toggleTask(TaskItem task) async {
+  final index = _tasks.indexWhere((e) => e.id == task.id);
+  if (index == -1) return;
 
-    _tasks[index] = task.copyWith(
-      isDone: !task.isDone,
-      isSkipped: false,
-    );
+  _tasks[index] = task.copyWith(
+    isDone: !task.isDone,
+    isSkipped: false,
+  );
 
-    _sortTasks();
-    await _saveTasks();
+  _sortTasks();
 
-    final updatedTask = _tasks[index];
-    await _scheduleIfNeeded(updatedTask);
-
-    if (mounted) {
-      setState(() {});
-    }
+  if (mounted) {
+    setState(() {});
   }
+
+  final updatedTask = _tasks[index];
+  await _saveTasks();
+  _scheduleIfNeeded(updatedTask);
+}
 
   Future<void> _skipTask(TaskItem task) async {
     if (task.priority == 3) {
@@ -659,15 +660,16 @@ class _TasksScreenState extends State<TasksScreen> {
     await _applySkipTask(task);
   }
 
-  Future<void> _deleteTask(TaskItem task) async {
-    _tasks.removeWhere((e) => e.id == task.id);
-    await _saveTasks();
-    await TaskReminderService.cancelTaskReminder(task.id);
+ Future<void> _deleteTask(TaskItem task) async {
+  _tasks.removeWhere((e) => e.id == task.id);
 
-    if (mounted) {
-      setState(() {});
-    }
+  if (mounted) {
+    setState(() {});
   }
+
+  await _saveTasks();
+  TaskReminderService.cancelTaskReminder(task.id);
+}
 
   Color _priorityColor(int priority) {
     switch (priority) {
