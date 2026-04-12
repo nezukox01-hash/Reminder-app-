@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/colors.dart';
 
@@ -81,40 +81,35 @@ class ReminderScreen extends StatefulWidget {
   State<ReminderScreen> createState() => _ReminderScreenState();
 }
 
-class _ReminderScreenState extends State<ReminderScreen>
-    with WidgetsBindingObserver {
+class _ReminderScreenState extends State<ReminderScreen> {
   static const String storageKey = 'ts_tasks_v5';
 
   final List<ReminderTaskItem> _allTasks = [];
-  SharedPreferences? _prefs;
+  Timer? _pollTimer;
+  String _lastSnapshot = '';
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _loadTasks();
-
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _loadTasks();
+    _pollTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _loadTasks(silentIfUnchanged: true);
     });
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    _pollTimer?.cancel();
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _loadTasks();
-    }
-  }
+  Future<void> _loadTasks({bool silentIfUnchanged = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getStringList(storageKey) ?? [];
+    final snapshot = data.join('###');
 
-  Future<void> _loadTasks() async {
-    _prefs = await SharedPreferences.getInstance();
-    final data = _prefs?.getStringList(storageKey) ?? [];
+    if (silentIfUnchanged && snapshot == _lastSnapshot) return;
+    _lastSnapshot = snapshot;
 
     _allTasks
       ..clear()
@@ -128,12 +123,10 @@ class _ReminderScreenState extends State<ReminderScreen>
   }
 
   Future<void> _saveTasks() async {
-    final prefs = _prefs ?? await SharedPreferences.getInstance();
-    _prefs = prefs;
-    await prefs.setStringList(
-      storageKey,
-      _allTasks.map((e) => e.toStorage()).toList(),
-    );
+    final prefs = await SharedPreferences.getInstance();
+    final data = _allTasks.map((e) => e.toStorage()).toList();
+    await prefs.setStringList(storageKey, data);
+    _lastSnapshot = data.join('###');
   }
 
   int _timeToMinutes(String reminderTime) {
@@ -218,9 +211,7 @@ class _ReminderScreenState extends State<ReminderScreen>
     _sortTasks();
     await _saveTasks();
 
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _skipTask(ReminderTaskItem task) async {
@@ -235,18 +226,14 @@ class _ReminderScreenState extends State<ReminderScreen>
     _sortTasks();
     await _saveTasks();
 
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _deleteTask(ReminderTaskItem task) async {
     _allTasks.removeWhere((e) => e.id == task.id);
     await _saveTasks();
 
-    if (mounted) {
-      setState(() {});
-    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -265,12 +252,7 @@ class _ReminderScreenState extends State<ReminderScreen>
                 child: Row(
                   children: [
                     IconButton(
-                      onPressed: () async {
-                        await _loadTasks();
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                        }
-                      },
+                      onPressed: () => Navigator.pop(context),
                       icon: const Icon(
                         Icons.arrow_back_ios_new_rounded,
                         color: Colors.white,
@@ -287,7 +269,7 @@ class _ReminderScreenState extends State<ReminderScreen>
                       ),
                     ),
                     IconButton(
-                      onPressed: _loadTasks,
+                      onPressed: () => _loadTasks(),
                       icon: const Icon(
                         Icons.refresh_rounded,
                         color: Colors.white,
