@@ -356,76 +356,76 @@ class _TasksScreenState extends State<TasksScreen> {
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4D88F8),
-                  ),
-                  onPressed: () async {
-                    final title = titleController.text.trim();
-                    final note = noteController.text.trim();
-                    final focusMinutes =
-                        int.tryParse(focusController.text.trim()) ?? 0;
-                    final reminderString = selectedTime == null
-                        ? ''
-                        : '${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}';
+    actions: [
+  TextButton(
+    onPressed: () => Navigator.pop(dialogContext),
+    child: const Text(
+      'Cancel',
+      style: TextStyle(color: Colors.white70),
+    ),
+  ),
+  ElevatedButton(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF4D88F8),
+    ),
+    onPressed: () async {
+      final title = titleController.text.trim();
+      final note = noteController.text.trim();
+      final focusMinutes =
+          int.tryParse(focusController.text.trim()) ?? 0;
+      final reminderString = selectedTime == null
+          ? ''
+          : '${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}';
 
-                    if (title.isEmpty) return;
+      if (title.isEmpty) return;
 
-                    TaskItem savedTask;
+      TaskItem savedTask;
 
-                    if (existing == null) {
-                      savedTask = TaskItem(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        title: title,
-                        note: note,
-                        isDone: false,
-                        isSkipped: false,
-                        reminderTime: reminderString,
-                        focusMinutes: focusMinutes,
-                        priority: selectedPriority,
-                      );
-                      _tasks.add(savedTask);
-                    } else {
-                      final index =
-                          _tasks.indexWhere((e) => e.id == existing.id);
-                      if (index == -1) return;
+      if (existing == null) {
+        savedTask = TaskItem(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          title: title,
+          note: note,
+          isDone: false,
+          isSkipped: false,
+          reminderTime: reminderString,
+          focusMinutes: focusMinutes,
+          priority: selectedPriority,
+        );
+        _tasks.add(savedTask);
+      } else {
+        final index = _tasks.indexWhere((e) => e.id == existing.id);
+        if (index == -1) return;
 
-                      savedTask = existing.copyWith(
-                        title: title,
-                        note: note,
-                        reminderTime: reminderString,
-                        focusMinutes: focusMinutes,
-                        priority: selectedPriority,
-                      );
-                      _tasks[index] = savedTask;
-                    }
+        savedTask = existing.copyWith(
+          title: title,
+          note: note,
+          reminderTime: reminderString,
+          focusMinutes: focusMinutes,
+          priority: selectedPriority,
+        );
+        _tasks[index] = savedTask;
+      }
 
-                    _sortTasks();
-                    await _saveTasks();
-                    await _scheduleIfNeeded(savedTask);
+      _sortTasks();
 
-                    if (mounted) {
-                      setState(() {});
-                    }
+      if (mounted) {
+        setState(() {});
+      }
 
-                    if (dialogContext.mounted) {
-                      Navigator.pop(dialogContext);
-                    }
-                  },
-                  child: Text(
-                    existing == null ? 'Save' : 'Update',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
+      if (dialogContext.mounted) {
+        Navigator.pop(dialogContext);
+      }
+
+      await _saveTasks();
+      _scheduleIfNeeded(savedTask);
+    },
+    child: Text(
+      existing == null ? 'Save' : 'Update',
+      style: const TextStyle(color: Colors.white),
+    ),
+  ),
+],
             );
           },
         );
