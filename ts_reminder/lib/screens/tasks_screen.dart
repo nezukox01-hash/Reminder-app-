@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/colors.dart';
 import '../widgets/extra/skip_motivation_dialog.dart';
 import '../widgets/extra/magic_five_bubble.dart';
+import '../services/task_reminder_service.dart';
 
 class TaskItem {
   final String id;
@@ -125,28 +126,21 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  int _timeToMinutes(String reminderTime) {
-    if (reminderTime.isEmpty) return 999999;
+int _timeToMinutes(String reminderTime) {
+  if (reminderTime.isEmpty) return 999999;
 
-    try {
-      final parts = reminderTime.split(' ');
-      if (parts.length != 2) return 999999;
+  try {
+    final parts = reminderTime.split(':');
+    if (parts.length != 2) return 999999;
 
-      final hm = parts[0].split(':');
-      if (hm.length != 2) return 999999;
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
 
-      int hour = int.parse(hm[0]);
-      final minute = int.parse(hm[1]);
-      final suffix = parts[1].toUpperCase();
-
-      if (suffix == 'PM' && hour != 12) hour += 12;
-      if (suffix == 'AM' && hour == 12) hour = 0;
-
-      return hour * 60 + minute;
-    } catch (_) {
-      return 999999;
-    }
+    return hour * 60 + minute;
+  } catch (_) {
+    return 999999;
   }
+}
 
   void _sortTasks() {
     _tasks.sort((a, b) {
@@ -398,6 +392,21 @@ class _TasksScreenState extends State<TasksScreen> {
 
                     _sortTasks();
                     await _saveTasks();
+                    
+                    if (reminderString.isNotEmpty) {
+  final savedTask = existing == null
+      ? _tasks.last
+      : _tasks.firstWhere((e) => e.id == existing.id);
+
+  if (!savedTask.isDone && !savedTask.isSkipped) {
+    await TaskReminderService.scheduleTaskReminder(
+      taskId: savedTask.id,
+      title: 'Task Reminder',
+      body: savedTask.title,
+      reminderTime: savedTask.reminderTime,
+    );
+  }
+}
 
                     if (mounted) {
                       setState(() {});
@@ -476,25 +485,18 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   TimeOfDay? _parseTime(String value) {
-    try {
-      final parts = value.split(' ');
-      if (parts.length != 2) return null;
+  try {
+    final parts = value.split(':');
+    if (parts.length != 2) return null;
 
-      final hm = parts[0].split(':');
-      if (hm.length != 2) return null;
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
 
-      int hour = int.parse(hm[0]);
-      final minute = int.parse(hm[1]);
-      final suffix = parts[1].toUpperCase();
-
-      if (suffix == 'PM' && hour != 12) hour += 12;
-      if (suffix == 'AM' && hour == 12) hour = 0;
-
-      return TimeOfDay(hour: hour, minute: minute);
-    } catch (_) {
-      return null;
-    }
+    return TimeOfDay(hour: hour, minute: minute);
+  } catch (_) {
+    return null;
   }
+}
 
   void _showMagicFiveBubble() {
     _magicFiveEntry?.remove();
@@ -511,22 +513,25 @@ class _TasksScreenState extends State<TasksScreen> {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
-  Future<void> _applySkipTask(TaskItem task) async {
-    final index = _tasks.indexWhere((e) => e.id == task.id);
-    if (index == -1) return;
+Future<void> _applySkipTask(TaskItem task) async {
+  final index = _tasks.indexWhere((e) => e.id == task.id);
+  if (index == -1) return;
 
-    _tasks[index] = task.copyWith(
-      isSkipped: true,
-      isDone: false,
-    );
+  _tasks[index] = task.copyWith(
+    isSkipped: true,
+    isDone: false,
+  );
 
-    _sortTasks();
-    await _saveTasks();
+  _sortTasks();
+  await _saveTasks();
 
-    if (mounted) {
-      setState(() {});
-    }
+  // 🔥 ADD THIS LINE RIGHT HERE
+  await TaskReminderService.cancelTaskReminder(task.id);
+
+  if (mounted) {
+    setState(() {});
   }
+}
 
 Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
   final result = await showDialog<String>(
@@ -634,6 +639,19 @@ Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
 
     _sortTasks();
     await _saveTasks();
+    
+    final updatedTask = _tasks[index];
+
+if (updatedTask.isDone) {
+  await TaskReminderService.cancelTaskReminder(updatedTask.id);
+} else if (updatedTask.reminderTime.isNotEmpty && !updatedTask.isSkipped) {
+  await TaskReminderService.scheduleTaskReminder(
+    taskId: updatedTask.id,
+    title: 'Task Reminder',
+    body: updatedTask.title,
+    reminderTime: updatedTask.reminderTime,
+  );
+}
 
     if (mounted) {
       setState(() {});
@@ -650,41 +668,15 @@ Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
 }
 
   
-  Future<void> _deleteTask(TaskItem task) async {
-    _tasks.removeWhere((e) => e.id == task.id);
-    await _saveTasks();
+Future<void> _deleteTask(TaskItem task) async {
+  _tasks.removeWhere((e) => e.id == task.id);
+  await _saveTasks();
+  await TaskReminderService.cancelTaskReminder(task.id);
 
-    if (mounted) {
-      setState(() {});
-    }
+  if (mounted) {
+    setState(() {});
   }
-
-  Color _priorityColor(int priority) {
-    switch (priority) {
-      case 1:
-        return Colors.grey;
-      case 2:
-        return Colors.blue;
-      case 3:
-        return Colors.redAccent;
-      default:
-        return Colors.blue;
-    }
-  }
-
-  String _priorityLabel(int priority) {
-    switch (priority) {
-      case 1:
-        return 'Low';
-      case 2:
-        return 'Medium';
-      case 3:
-        return 'High';
-      default:
-        return 'Medium';
-    }
-  }
-
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
