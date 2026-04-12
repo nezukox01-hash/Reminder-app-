@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/colors.dart';
+import '../widgets/extra/skip_motivation_dialog.dart';
+import '../widgets/extra/magic_five_bubble.dart';
 
 class ReminderTaskItem {
   final String id;
@@ -87,6 +89,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
   final List<ReminderTaskItem> _allTasks = [];
   Timer? _pollTimer;
   String _lastSnapshot = '';
+  OverlayEntry? _magicFiveEntry;
 
   @override
   void initState() {
@@ -100,6 +103,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _magicFiveEntry?.remove();
     super.dispose();
   }
 
@@ -129,22 +133,22 @@ class _ReminderScreenState extends State<ReminderScreen> {
     _lastSnapshot = data.join('###');
   }
 
-int _timeToMinutes(String reminderTime) {
-  if (reminderTime.isEmpty) return 999999;
+  int _timeToMinutes(String reminderTime) {
+    if (reminderTime.isEmpty) return 999999;
 
-  try {
-    final parts = reminderTime.split(':');
-    if (parts.length != 2) return 999999;
+    try {
+      final parts = reminderTime.split(':');
+      if (parts.length != 2) return 999999;
 
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
 
-    return hour * 60 + minute;
-  } catch (_) {
-    return 999999;
+      return hour * 60 + minute;
+    } catch (_) {
+      return 999999;
+    }
   }
-}
-  
+
   void _sortTasks() {
     _allTasks.sort((a, b) {
       final aTime = _timeToMinutes(a.reminderTime);
@@ -192,6 +196,133 @@ int _timeToMinutes(String reminderTime) {
     }
   }
 
+  void _showMagicFiveBubble() {
+    _magicFiveEntry?.remove();
+
+    _magicFiveEntry = OverlayEntry(
+      builder: (_) => MagicFiveBubble(
+        onClose: () {
+          _magicFiveEntry?.remove();
+          _magicFiveEntry = null;
+        },
+      ),
+    );
+
+    Overlay.of(context).insert(_magicFiveEntry!);
+  }
+
+  Future<void> _applySkipTask(ReminderTaskItem task) async {
+    final index = _allTasks.indexWhere((e) => e.id == task.id);
+    if (index == -1) return;
+
+    _allTasks[index] = task.copyWith(
+      isSkipped: true,
+      isDone: false,
+    );
+
+    _sortTasks();
+    await _saveTasks();
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _showMotivationDialog(ReminderTaskItem task) async {
+    if (!mounted) return;
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return SkipMotivationDialog(
+          onSkip: () {
+            Navigator.pop(context, 'skip');
+          },
+          onStartMagic: () {
+            Navigator.pop(context, 'magic');
+          },
+          onLetsDoIt: () {
+            Navigator.pop(context, 'doit');
+          },
+        );
+      },
+    );
+
+    if (result == 'skip') {
+      await _applySkipTask(task);
+    } else if (result == 'magic') {
+      _showMagicFiveBubble();
+    }
+  }
+
+  Future<void> _showHighPrioritySkipWarning(ReminderTaskItem task) async {
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF102643),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text(
+            'Skip High Priority Task?',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: const Text(
+            'Are you sure you want to skip this task?\n\nIf you need a little push, tap Help Me.',
+            style: TextStyle(
+              color: Colors.white70,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, 'cancel');
+              },
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, 'skip');
+              },
+              child: const Text(
+                'Skip Anyway',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4D88F8),
+              ),
+              onPressed: () {
+                Navigator.pop(context, 'help');
+              },
+              child: const Text(
+                'Help Me',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == 'skip') {
+      await _applySkipTask(task);
+    } else if (result == 'help') {
+      await _showMotivationDialog(task);
+    }
+  }
+
   Future<void> _toggleDone(ReminderTaskItem task) async {
     final index = _allTasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
@@ -208,18 +339,12 @@ int _timeToMinutes(String reminderTime) {
   }
 
   Future<void> _skipTask(ReminderTaskItem task) async {
-    final index = _allTasks.indexWhere((e) => e.id == task.id);
-    if (index == -1) return;
+    if (task.priority == 3) {
+      await _showHighPrioritySkipWarning(task);
+      return;
+    }
 
-    _allTasks[index] = task.copyWith(
-      isSkipped: true,
-      isDone: false,
-    );
-
-    _sortTasks();
-    await _saveTasks();
-
-    if (mounted) setState(() {});
+    await _applySkipTask(task);
   }
 
   Future<void> _deleteTask(ReminderTaskItem task) async {
