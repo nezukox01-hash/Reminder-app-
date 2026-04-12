@@ -180,33 +180,41 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
+
         HomeCard(
-          title: 'Reminder',
-          icon: Icons.notifications_active_rounded,
-          color: AppColors.reminder,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const ReminderScreen(),
-              ),
-            );
-          },
-        ),
-        
-       HomeCard(
+  title: 'Reminder',
+  icon: Icons.notifications_active_rounded,
+  color: AppColors.reminder,
+  onTap: () async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ReminderScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+    setState(() {});
+  },
+),
+
+HomeCard(
   title: 'Daily Tasks',
   icon: Icons.check_circle_rounded,
   color: AppColors.tasks,
-  onTap: () {
-    Navigator.push(
+  onTap: () async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => const TasksScreen(),
       ),
     );
+
+    if (!mounted) return;
+    setState(() {});
   },
 ),
+        
         const HomeCard(
           title: 'Motivation',
           icon: Icons.auto_awesome_rounded,
