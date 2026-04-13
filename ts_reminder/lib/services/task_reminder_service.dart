@@ -40,6 +40,7 @@ class TaskReminderService {
 
     const details = NotificationDetails(android: androidDetails);
 
+    // Main reminder
     await _notifications.zonedSchedule(
       taskId.hashCode,
       title,
@@ -51,10 +52,29 @@ class TaskReminderService {
           UILocalNotificationDateInterpretation.absoluteTime,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
+
+    // 3 minutes before reminder
+    final now = tz.TZDateTime.now(tz.local);
+    final preDate = scheduledDate.subtract(const Duration(minutes: 3));
+
+    if (preDate.isAfter(now)) {
+      await _notifications.zonedSchedule(
+        taskId.hashCode + 1,
+        'Upcoming Task',
+        body,
+        preDate,
+        details,
+        androidAllowWhileIdle: true,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+    }
   }
 
   static Future<void> cancelTaskReminder(String taskId) async {
     await _notifications.cancel(taskId.hashCode);
+    await _notifications.cancel(taskId.hashCode + 1);
   }
 
   static Future<void> cancelAllTaskReminders() async {
