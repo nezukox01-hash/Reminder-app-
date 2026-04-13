@@ -1,7 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter_timezone/flutter_timezone.dart'; // 👈 ADDED
+import 'package:flutter_timezone/flutter_timezone.dart';
 
 class TaskReminderService {
   TaskReminderService._();
@@ -12,7 +12,6 @@ class TaskReminderService {
   static Future<void> init() async {
     tz.initializeTimeZones();
     
-    // 👈 FIX 1: Fetch and set the actual device timezone instead of defaulting to UTC
     try {
       final String timeZoneName = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timeZoneName));
@@ -20,10 +19,19 @@ class TaskReminderService {
       // Fallback
     }
 
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    // 👈 FIX 1: Removed '@mipmap/'. Android just wants the file name!
+    const android = AndroidInitializationSettings('ic_launcher');
     const settings = InitializationSettings(android: android);
 
     await _notifications.initialize(settings);
+
+    final androidImplementation = _notifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        
+    if (androidImplementation != null) {
+      await androidImplementation.requestNotificationsPermission();
+      await androidImplementation.requestExactAlarmsPermission();
+    }
   }
 
   static Future<void> scheduleTaskReminder({
@@ -45,13 +53,14 @@ class TaskReminderService {
 
     const details = NotificationDetails(android: androidDetails);
 
-    // 👈 FIX 2: Prevent negative IDs by using .abs()
-    final exactId = taskId.hashCode.abs();
-    final preId = (taskId.hashCode + 1).abs();
+    // 👈 FIX 2: Shrink the ID to guarantee it fits perfectly into Android's 32-bit limit
+    final exactId = (taskId.hashCode.abs() % 100000);
+    final preId = exactId + 1;
 
     await _notifications.cancel(exactId);
     await _notifications.cancel(preId);
 
+    // Schedule the EXACT time notification
     await _notifications.zonedSchedule(
       exactId,
       title,
@@ -66,6 +75,7 @@ class TaskReminderService {
     final now = tz.TZDateTime.now(tz.local);
     final preTime = scheduledTime.subtract(const Duration(minutes: 3));
 
+    // Schedule the 3-MINUTE EARLY notification (Only if there is enough time!)
     if (preTime.isAfter(now)) {
       await _notifications.zonedSchedule(
         preId,
@@ -81,8 +91,8 @@ class TaskReminderService {
   }
 
   static Future<void> cancelTaskReminder(String taskId) async {
-    final exactId = taskId.hashCode.abs();
-    final preId = (taskId.hashCode + 1).abs();
+    final exactId = (taskId.hashCode.abs() % 100000);
+    final preId = exactId + 1;
     await _notifications.cancel(exactId);
     await _notifications.cancel(preId);
   }
