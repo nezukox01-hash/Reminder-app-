@@ -6,12 +6,8 @@ import 'services/task_reminder_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 🔥 IMPORTANT (timezone required for scheduled notifications)
   tz.initializeTimeZones();
-
   await TaskReminderService.init();
-
   runApp(const TSReminderApp());
 }
 
