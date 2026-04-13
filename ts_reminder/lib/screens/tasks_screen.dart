@@ -285,7 +285,8 @@ class _TasksScreenState extends State<TasksScreen> {
                       );
                       _tasks.add(savedTask);
                     } else {
-                      final index = _tasks.indexWhere((e) => e.id == existing.id);
+                      final index =
+                          _tasks.indexWhere((e) => e.id == existing.id);
                       if (index == -1) return;
 
                       savedTask = existing.copyWith(
@@ -309,7 +310,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     }
 
                     await _saveTasks();
-                    _scheduleIfNeeded(savedTask);
+                    await _scheduleIfNeeded(savedTask);
                   },
                   child: Text(
                     existing == null ? 'Save' : 'Update',
@@ -424,7 +425,7 @@ class _TasksScreenState extends State<TasksScreen> {
     }
 
     await _saveTasks();
-    TaskReminderService.cancelTaskReminder(task.id);
+    await TaskReminderService.cancelTaskReminder(task.id);
   }
 
   Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
@@ -539,7 +540,7 @@ class _TasksScreenState extends State<TasksScreen> {
 
     final updatedTask = _tasks[index];
     await _saveTasks();
-    _scheduleIfNeeded(updatedTask);
+    await _scheduleIfNeeded(updatedTask);
   }
 
   Future<void> _skipTask(TaskItem task) async {
@@ -559,7 +560,7 @@ class _TasksScreenState extends State<TasksScreen> {
     }
 
     await _saveTasks();
-    TaskReminderService.cancelTaskReminder(task.id);
+    await TaskReminderService.cancelTaskReminder(task.id);
   }
 
   Color _priorityColor(int priority) {
