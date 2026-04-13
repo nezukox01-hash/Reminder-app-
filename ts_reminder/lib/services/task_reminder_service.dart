@@ -16,7 +16,7 @@ class TaskReminderService {
       final String timeZoneName = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timeZoneName));
     } catch (e) {
-      // 👈 FIX 1: If the phone fails to find the timezone, forcefully use Bangladesh time instead of UTC!
+      // If the phone fails to find the timezone, forcefully use Bangladesh time
       tz.setLocalLocation(tz.getLocation('Asia/Dhaka'));
     }
 
@@ -24,6 +24,19 @@ class TaskReminderService {
     const settings = InitializationSettings(android: android);
 
     await _notifications.initialize(settings);
+
+    // Call permissions without 'await' so it doesn't freeze the screen
+    _requestPermissions();
+  }
+
+  static void _requestPermissions() {
+    final androidImplementation = _notifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        
+    if (androidImplementation != null) {
+      androidImplementation.requestNotificationsPermission();
+      androidImplementation.requestExactAlarmsPermission();
+    }
   }
 
   static Future<void> scheduleTaskReminder({
@@ -34,18 +47,17 @@ class TaskReminderService {
   }) async {
     
     const androidDetails = AndroidNotificationDetails(
-      'task_channel',
+      'task_channel_v2', // 👈 CHANGED TO v2 to force a fresh, unmuted channel!
       'Task Reminders',
       channelDescription: 'Task reminder notifications',
       importance: Importance.max,
       priority: Priority.high,
-      // 👈 FIX 2: Explicitly attaching the icon to the channel details
       icon: '@mipmap/ic_launcher', 
     );
 
     const details = NotificationDetails(android: androidDetails);
 
-    // 👈 PROOF OF LIFE: This fires instantly the moment you tap Save to prove notifications work!
+    // PROOF OF LIFE: This fires instantly the moment you tap Save to prove notifications work!
     await _notifications.show(
       999999, 
       '✅ Alarm Set!',
