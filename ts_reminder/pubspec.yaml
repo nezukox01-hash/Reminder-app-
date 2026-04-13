@@ -14,6 +14,7 @@ dependencies:
   # 🔔 Notifications
   flutter_local_notifications: ^17.2.1
   timezone: ^0.9.4
+  flutter_timezone: ^3.0.0 # 👈 ADDED to fix UTC timezone offset
 
   # 📦 State & Storage
   provider: ^6.1.2
