@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart'; // 👈 ADDED
 
 class TaskReminderService {
   TaskReminderService._();
@@ -10,6 +11,14 @@ class TaskReminderService {
 
   static Future<void> init() async {
     tz.initializeTimeZones();
+    
+    // 👈 FIX 1: Fetch and set the actual device timezone instead of defaulting to UTC
+    try {
+      final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+    } catch (e) {
+      // Fallback
+    }
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
@@ -36,11 +45,15 @@ class TaskReminderService {
 
     const details = NotificationDetails(android: androidDetails);
 
-    await _notifications.cancel(taskId.hashCode);
-    await _notifications.cancel(taskId.hashCode + 1);
+    // 👈 FIX 2: Prevent negative IDs by using .abs()
+    final exactId = taskId.hashCode.abs();
+    final preId = (taskId.hashCode + 1).abs();
+
+    await _notifications.cancel(exactId);
+    await _notifications.cancel(preId);
 
     await _notifications.zonedSchedule(
-      taskId.hashCode,
+      exactId,
       title,
       body,
       scheduledTime,
@@ -55,7 +68,7 @@ class TaskReminderService {
 
     if (preTime.isAfter(now)) {
       await _notifications.zonedSchedule(
-        taskId.hashCode + 1,
+        preId,
         'Upcoming Task',
         body,
         preTime,
@@ -68,8 +81,10 @@ class TaskReminderService {
   }
 
   static Future<void> cancelTaskReminder(String taskId) async {
-    await _notifications.cancel(taskId.hashCode);
-    await _notifications.cancel(taskId.hashCode + 1);
+    final exactId = taskId.hashCode.abs();
+    final preId = (taskId.hashCode + 1).abs();
+    await _notifications.cancel(exactId);
+    await _notifications.cancel(preId);
   }
 
   static tz.TZDateTime? _nextDateFrom24HourString(String value) {
