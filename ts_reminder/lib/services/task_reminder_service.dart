@@ -19,18 +19,24 @@ class TaskReminderService {
       // Fallback
     }
 
-    // 👈 FIX 1: Removed '@mipmap/'. Android just wants the file name!
-    const android = AndroidInitializationSettings('ic_launcher');
+    // 👈 FIX 1: Put '@mipmap/' back so the app doesn't crash looking for the icon!
+    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
 
     await _notifications.initialize(settings);
 
+    // 👈 FIX 2: Call permissions without 'await' so it doesn't freeze the white screen
+    _requestPermissions();
+  }
+
+  // This fires in the background so runApp() can load your UI immediately
+  static void _requestPermissions() {
     final androidImplementation = _notifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
         
     if (androidImplementation != null) {
-      await androidImplementation.requestNotificationsPermission();
-      await androidImplementation.requestExactAlarmsPermission();
+      androidImplementation.requestNotificationsPermission();
+      androidImplementation.requestExactAlarmsPermission();
     }
   }
 
@@ -53,14 +59,12 @@ class TaskReminderService {
 
     const details = NotificationDetails(android: androidDetails);
 
-    // 👈 FIX 2: Shrink the ID to guarantee it fits perfectly into Android's 32-bit limit
     final exactId = (taskId.hashCode.abs() % 100000);
     final preId = exactId + 1;
 
     await _notifications.cancel(exactId);
     await _notifications.cancel(preId);
 
-    // Schedule the EXACT time notification
     await _notifications.zonedSchedule(
       exactId,
       title,
@@ -75,7 +79,6 @@ class TaskReminderService {
     final now = tz.TZDateTime.now(tz.local);
     final preTime = scheduledTime.subtract(const Duration(minutes: 3));
 
-    // Schedule the 3-MINUTE EARLY notification (Only if there is enough time!)
     if (preTime.isAfter(now)) {
       await _notifications.zonedSchedule(
         preId,
