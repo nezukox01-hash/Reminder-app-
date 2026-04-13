@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // 👈 Added this import for the test
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/task_helper.dart';
@@ -80,7 +81,6 @@ class _TasksScreenState extends State<TasksScreen> {
         reminderTime: task.reminderTime,
       );
     } catch (e, stacktrace) {
-      // 👈 CRASH CATCHER: If the background notification fails, this prints the error on your screen!
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -93,7 +93,6 @@ class _TasksScreenState extends State<TasksScreen> {
       print("Error: $e\n$stacktrace");
     }
   }
-
 
   Future<void> _openTaskDialog({TaskItem? existing}) async {
     final titleController =
@@ -638,9 +637,39 @@ class _TasksScreenState extends State<TasksScreen> {
                         ),
                       ),
                     ),
+                    // 👈 HERE IS THE NUCLEAR TEST BUTTON
                     IconButton(
-                      onPressed: () => _openTaskDialog(),
-                      icon: const Icon(Icons.add_task, color: Colors.white),
+                      onPressed: () async {
+                        try {
+                          final plugin = FlutterLocalNotificationsPlugin();
+                          await plugin.show(
+                            12345,
+                            'RAW TEST',
+                            'Did this ring?',
+                            const NotificationDetails(
+                              android: AndroidNotificationDetails(
+                                'raw_test', 
+                                'Raw Test', 
+                                importance: Importance.max, 
+                                priority: Priority.high,
+                                icon: '@mipmap/ic_launcher', 
+                              ),
+                            ),
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('✅ Signal sent to Android!'), backgroundColor: Colors.green),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('❌ CRASH: $e'), backgroundColor: Colors.red, duration: const Duration(seconds: 10)),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.bug_report, color: Colors.yellowAccent, size: 30),
                     ),
                   ],
                 ),
