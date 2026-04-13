@@ -1,81 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../helpers/task_helper.dart';
+import '../models/task_item.dart';
 import '../services/task_reminder_service.dart';
 import '../utils/colors.dart';
 import '../widgets/extra/magic_five_bubble.dart';
 import '../widgets/extra/skip_motivation_dialog.dart';
-
-class TaskItem {
-  final String id;
-  final String title;
-  final String note;
-  final bool isDone;
-  final bool isSkipped;
-  final String reminderTime;
-  final int focusMinutes;
-  final int priority; // 1 = low, 2 = medium, 3 = high
-
-  TaskItem({
-    required this.id,
-    required this.title,
-    required this.note,
-    required this.isDone,
-    required this.isSkipped,
-    required this.reminderTime,
-    required this.focusMinutes,
-    required this.priority,
-  });
-
-  TaskItem copyWith({
-    String? id,
-    String? title,
-    String? note,
-    bool? isDone,
-    bool? isSkipped,
-    String? reminderTime,
-    int? focusMinutes,
-    int? priority,
-  }) {
-    return TaskItem(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      note: note ?? this.note,
-      isDone: isDone ?? this.isDone,
-      isSkipped: isSkipped ?? this.isSkipped,
-      reminderTime: reminderTime ?? this.reminderTime,
-      focusMinutes: focusMinutes ?? this.focusMinutes,
-      priority: priority ?? this.priority,
-    );
-  }
-
-  String toStorage() {
-    return [
-      id,
-      title,
-      note,
-      isDone.toString(),
-      isSkipped.toString(),
-      reminderTime,
-      focusMinutes.toString(),
-      priority.toString(),
-    ].join('||');
-  }
-
-  factory TaskItem.fromStorage(String value) {
-    final parts = value.split('||');
-    return TaskItem(
-      id: parts.isNotEmpty ? parts[0] : '',
-      title: parts.length > 1 ? parts[1] : '',
-      note: parts.length > 2 ? parts[2] : '',
-      isDone: parts.length > 3 ? parts[3] == 'true' : false,
-      isSkipped: parts.length > 4 ? parts[4] == 'true' : false,
-      reminderTime: parts.length > 5 ? parts[5] : '',
-      focusMinutes: parts.length > 6 ? int.tryParse(parts[6]) ?? 0 : 0,
-      priority: parts.length > 7 ? int.tryParse(parts[7]) ?? 2 : 2,
-    );
-  }
-}
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
@@ -127,48 +58,8 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  int _timeToMinutes(String reminderTime) {
-    if (reminderTime.isEmpty) return 999999;
-
-    try {
-      final parts = reminderTime.split(':');
-      if (parts.length != 2) return 999999;
-
-      final hour = int.parse(parts[0]);
-      final minute = int.parse(parts[1]);
-
-      return hour * 60 + minute;
-    } catch (_) {
-      return 999999;
-    }
-  }
-
   void _sortTasks() {
-    _tasks.sort((a, b) {
-      final aPending = !a.isDone && !a.isSkipped;
-      final bPending = !b.isDone && !b.isSkipped;
-
-      if (aPending != bPending) {
-        return aPending ? -1 : 1;
-      }
-
-      if (a.isDone != b.isDone) {
-        return a.isDone ? 1 : -1;
-      }
-
-      if (a.isSkipped != b.isSkipped) {
-        return a.isSkipped ? 1 : -1;
-      }
-
-      final aTime = _timeToMinutes(a.reminderTime);
-      final bTime = _timeToMinutes(b.reminderTime);
-
-      if (aTime != bTime) {
-        return aTime.compareTo(bTime);
-      }
-
-      return b.priority.compareTo(a.priority);
-    });
+    sortTasks(_tasks);
   }
 
   int get _doneCount => _tasks.where((e) => e.isDone).length;
@@ -356,76 +247,76 @@ class _TasksScreenState extends State<TasksScreen> {
                   ],
                 ),
               ),
-    actions: [
-  TextButton(
-    onPressed: () => Navigator.pop(dialogContext),
-    child: const Text(
-      'Cancel',
-      style: TextStyle(color: Colors.white70),
-    ),
-  ),
-  ElevatedButton(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: const Color(0xFF4D88F8),
-    ),
-    onPressed: () async {
-      final title = titleController.text.trim();
-      final note = noteController.text.trim();
-      final focusMinutes =
-          int.tryParse(focusController.text.trim()) ?? 0;
-      final reminderString = selectedTime == null
-          ? ''
-          : '${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}';
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4D88F8),
+                  ),
+                  onPressed: () async {
+                    final title = titleController.text.trim();
+                    final note = noteController.text.trim();
+                    final focusMinutes =
+                        int.tryParse(focusController.text.trim()) ?? 0;
+                    final reminderString = selectedTime == null
+                        ? ''
+                        : '${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}';
 
-      if (title.isEmpty) return;
+                    if (title.isEmpty) return;
 
-      TaskItem savedTask;
+                    TaskItem savedTask;
 
-      if (existing == null) {
-        savedTask = TaskItem(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: title,
-          note: note,
-          isDone: false,
-          isSkipped: false,
-          reminderTime: reminderString,
-          focusMinutes: focusMinutes,
-          priority: selectedPriority,
-        );
-        _tasks.add(savedTask);
-      } else {
-        final index = _tasks.indexWhere((e) => e.id == existing.id);
-        if (index == -1) return;
+                    if (existing == null) {
+                      savedTask = TaskItem(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        title: title,
+                        note: note,
+                        isDone: false,
+                        isSkipped: false,
+                        reminderTime: reminderString,
+                        focusMinutes: focusMinutes,
+                        priority: selectedPriority,
+                      );
+                      _tasks.add(savedTask);
+                    } else {
+                      final index = _tasks.indexWhere((e) => e.id == existing.id);
+                      if (index == -1) return;
 
-        savedTask = existing.copyWith(
-          title: title,
-          note: note,
-          reminderTime: reminderString,
-          focusMinutes: focusMinutes,
-          priority: selectedPriority,
-        );
-        _tasks[index] = savedTask;
-      }
+                      savedTask = existing.copyWith(
+                        title: title,
+                        note: note,
+                        reminderTime: reminderString,
+                        focusMinutes: focusMinutes,
+                        priority: selectedPriority,
+                      );
+                      _tasks[index] = savedTask;
+                    }
 
-      _sortTasks();
+                    _sortTasks();
 
-      if (mounted) {
-        setState(() {});
-      }
+                    if (mounted) {
+                      setState(() {});
+                    }
 
-      if (dialogContext.mounted) {
-        Navigator.pop(dialogContext);
-      }
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
 
-      await _saveTasks();
-      _scheduleIfNeeded(savedTask);
-    },
-    child: Text(
-      existing == null ? 'Save' : 'Update',
-      style: const TextStyle(color: Colors.white),
-    ),
-  ),
-],
+                    await _saveTasks();
+                    _scheduleIfNeeded(savedTask);
+                  },
+                  child: Text(
+                    existing == null ? 'Save' : 'Update',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
             );
           },
         );
@@ -517,24 +408,24 @@ class _TasksScreenState extends State<TasksScreen> {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
-Future<void> _applySkipTask(TaskItem task) async {
-  final index = _tasks.indexWhere((e) => e.id == task.id);
-  if (index == -1) return;
+  Future<void> _applySkipTask(TaskItem task) async {
+    final index = _tasks.indexWhere((e) => e.id == task.id);
+    if (index == -1) return;
 
-  _tasks[index] = task.copyWith(
-    isSkipped: true,
-    isDone: false,
-  );
+    _tasks[index] = task.copyWith(
+      isSkipped: true,
+      isDone: false,
+    );
 
-  _sortTasks();
+    _sortTasks();
 
-  if (mounted) {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
+
+    await _saveTasks();
+    TaskReminderService.cancelTaskReminder(task.id);
   }
-
-  await _saveTasks();
-  TaskReminderService.cancelTaskReminder(task.id);
-}
 
   Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
     final result = await showDialog<String>(
@@ -631,25 +522,25 @@ Future<void> _applySkipTask(TaskItem task) async {
     }
   }
 
-Future<void> _toggleTask(TaskItem task) async {
-  final index = _tasks.indexWhere((e) => e.id == task.id);
-  if (index == -1) return;
+  Future<void> _toggleTask(TaskItem task) async {
+    final index = _tasks.indexWhere((e) => e.id == task.id);
+    if (index == -1) return;
 
-  _tasks[index] = task.copyWith(
-    isDone: !task.isDone,
-    isSkipped: false,
-  );
+    _tasks[index] = task.copyWith(
+      isDone: !task.isDone,
+      isSkipped: false,
+    );
 
-  _sortTasks();
+    _sortTasks();
 
-  if (mounted) {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
+
+    final updatedTask = _tasks[index];
+    await _saveTasks();
+    _scheduleIfNeeded(updatedTask);
   }
-
-  final updatedTask = _tasks[index];
-  await _saveTasks();
-  _scheduleIfNeeded(updatedTask);
-}
 
   Future<void> _skipTask(TaskItem task) async {
     if (task.priority == 3) {
@@ -660,16 +551,16 @@ Future<void> _toggleTask(TaskItem task) async {
     await _applySkipTask(task);
   }
 
- Future<void> _deleteTask(TaskItem task) async {
-  _tasks.removeWhere((e) => e.id == task.id);
+  Future<void> _deleteTask(TaskItem task) async {
+    _tasks.removeWhere((e) => e.id == task.id);
 
-  if (mounted) {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
+
+    await _saveTasks();
+    TaskReminderService.cancelTaskReminder(task.id);
   }
-
-  await _saveTasks();
-  TaskReminderService.cancelTaskReminder(task.id);
-}
 
   Color _priorityColor(int priority) {
     switch (priority) {
