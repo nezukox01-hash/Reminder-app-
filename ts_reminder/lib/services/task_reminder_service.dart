@@ -3,6 +3,8 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 class TaskReminderService {
+  TaskReminderService._();
+
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
@@ -21,37 +23,22 @@ class TaskReminderService {
     required String body,
     required String reminderTime,
   }) async {
-    final parts = reminderTime.split(':');
-    if (parts.length != 2) return;
-
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
-
-    final now = tz.TZDateTime.now(tz.local);
-
-    var scheduledTime = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
-    );
-
-    if (scheduledTime.isBefore(now)) {
-      scheduledTime = scheduledTime.add(const Duration(days: 1));
-    }
+    final scheduledTime = _nextDateFrom24HourString(reminderTime);
+    if (scheduledTime == null) return;
 
     const androidDetails = AndroidNotificationDetails(
       'task_channel',
       'Task Reminders',
+      channelDescription: 'Task reminder notifications',
       importance: Importance.max,
       priority: Priority.high,
     );
 
     const details = NotificationDetails(android: androidDetails);
 
-    // 🔔 Main reminder
+    await _notifications.cancel(taskId.hashCode);
+    await _notifications.cancel(taskId.hashCode + 1);
+
     await _notifications.zonedSchedule(
       taskId.hashCode,
       title,
@@ -61,9 +48,10 @@ class TaskReminderService {
       androidAllowWhileIdle: true,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
 
-    // ⏰ 3 minutes আগে
+    final now = tz.TZDateTime.now(tz.local);
     final preTime = scheduledTime.subtract(const Duration(minutes: 3));
 
     if (preTime.isAfter(now)) {
@@ -76,6 +64,7 @@ class TaskReminderService {
         androidAllowWhileIdle: true,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
     }
   }
@@ -83,5 +72,34 @@ class TaskReminderService {
   static Future<void> cancelTaskReminder(String taskId) async {
     await _notifications.cancel(taskId.hashCode);
     await _notifications.cancel(taskId.hashCode + 1);
+  }
+
+  static tz.TZDateTime? _nextDateFrom24HourString(String value) {
+    try {
+      final parts = value.split(':');
+      if (parts.length != 2) return null;
+
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+
+      final now = tz.TZDateTime.now(tz.local);
+
+      var scheduled = tz.TZDateTime(
+        tz.local,
+        now.year,
+        now.month,
+        now.day,
+        hour,
+        minute,
+      );
+
+      if (scheduled.isBefore(now)) {
+        scheduled = scheduled.add(const Duration(days: 1));
+      }
+
+      return scheduled;
+    } catch (_) {
+      return null;
+    }
   }
 }
