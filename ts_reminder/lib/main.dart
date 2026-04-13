@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
-
 import 'screens/home_screen.dart';
 import 'services/task_reminder_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 🔥 REQUIRED for notifications
-  tz.initializeTimeZones();
   await TaskReminderService.init();
-
   runApp(const TSReminderApp());
 }
 
