@@ -16,28 +16,14 @@ class TaskReminderService {
       final String timeZoneName = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timeZoneName));
     } catch (e) {
-      // Fallback
+      // 👈 FIX 1: If the phone fails to find the timezone, forcefully use Bangladesh time instead of UTC!
+      tz.setLocalLocation(tz.getLocation('Asia/Dhaka'));
     }
 
-    // 👈 FIX 1: Put '@mipmap/' back so the app doesn't crash looking for the icon!
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
 
     await _notifications.initialize(settings);
-
-    // 👈 FIX 2: Call permissions without 'await' so it doesn't freeze the white screen
-    _requestPermissions();
-  }
-
-  // This fires in the background so runApp() can load your UI immediately
-  static void _requestPermissions() {
-    final androidImplementation = _notifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-        
-    if (androidImplementation != null) {
-      androidImplementation.requestNotificationsPermission();
-      androidImplementation.requestExactAlarmsPermission();
-    }
   }
 
   static Future<void> scheduleTaskReminder({
@@ -46,18 +32,29 @@ class TaskReminderService {
     required String body,
     required String reminderTime,
   }) async {
-    final scheduledTime = _nextDateFrom24HourString(reminderTime);
-    if (scheduledTime == null) return;
-
+    
     const androidDetails = AndroidNotificationDetails(
       'task_channel',
       'Task Reminders',
       channelDescription: 'Task reminder notifications',
       importance: Importance.max,
       priority: Priority.high,
+      // 👈 FIX 2: Explicitly attaching the icon to the channel details
+      icon: '@mipmap/ic_launcher', 
     );
 
     const details = NotificationDetails(android: androidDetails);
+
+    // 👈 PROOF OF LIFE: This fires instantly the moment you tap Save to prove notifications work!
+    await _notifications.show(
+      999999, 
+      '✅ Alarm Set!',
+      'Your task "$body" is locked in for $reminderTime.',
+      details,
+    );
+
+    final scheduledTime = _nextDateFrom24HourString(reminderTime);
+    if (scheduledTime == null) return;
 
     final exactId = (taskId.hashCode.abs() % 100000);
     final preId = exactId + 1;
@@ -65,6 +62,7 @@ class TaskReminderService {
     await _notifications.cancel(exactId);
     await _notifications.cancel(preId);
 
+    // Schedule exact time
     await _notifications.zonedSchedule(
       exactId,
       title,
@@ -79,6 +77,7 @@ class TaskReminderService {
     final now = tz.TZDateTime.now(tz.local);
     final preTime = scheduledTime.subtract(const Duration(minutes: 3));
 
+    // Schedule 3 minutes early
     if (preTime.isAfter(now)) {
       await _notifications.zonedSchedule(
         preId,
