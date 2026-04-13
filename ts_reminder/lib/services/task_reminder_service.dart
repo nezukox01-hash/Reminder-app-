@@ -1,5 +1,4 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -11,9 +10,6 @@ class TaskReminderService {
 
   static Future<void> init() async {
     tz.initializeTimeZones();
-
-    final String timezoneName = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(timezoneName));
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
@@ -74,25 +70,6 @@ class TaskReminderService {
   static Future<void> cancelTaskReminder(String taskId) async {
     await _notifications.cancel(taskId.hashCode);
     await _notifications.cancel(taskId.hashCode + 1);
-  }
-
-  static Future<void> showInstantTestNotification() async {
-    const androidDetails = AndroidNotificationDetails(
-      'task_channel',
-      'Task Reminders',
-      channelDescription: 'Task reminder notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-
-    const details = NotificationDetails(android: androidDetails);
-
-    await _notifications.show(
-      999999,
-      'TS Reminder Test',
-      'If you can see this, notifications are working.',
-      details,
-    );
   }
 
   static tz.TZDateTime? _nextDateFrom24HourString(String value) {
