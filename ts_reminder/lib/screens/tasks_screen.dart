@@ -72,13 +72,28 @@ class _TasksScreenState extends State<TasksScreen> {
 
     if (task.reminderTime.isEmpty || task.isDone || task.isSkipped) return;
 
-    await TaskReminderService.scheduleTaskReminder(
-      taskId: task.id,
-      title: 'Task Reminder',
-      body: task.title,
-      reminderTime: task.reminderTime,
-    );
+    try {
+      await TaskReminderService.scheduleTaskReminder(
+        taskId: task.id,
+        title: 'Task Reminder',
+        body: task.title,
+        reminderTime: task.reminderTime,
+      );
+    } catch (e, stacktrace) {
+      // 👈 CRASH CATCHER: If the background notification fails, this prints the error on your screen!
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('NOTIFICATION ERROR:\n$e', style: const TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 10),
+          ),
+        );
+      }
+      print("Error: $e\n$stacktrace");
+    }
   }
+
 
   Future<void> _openTaskDialog({TaskItem? existing}) async {
     final titleController =
