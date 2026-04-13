@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // 👈 Added this import for the test
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/task_helper.dart';
@@ -637,28 +639,37 @@ class _TasksScreenState extends State<TasksScreen> {
                         ),
                       ),
                     ),
-                    // 👈 HERE IS THE NUCLEAR TEST BUTTON
+                    // 👈 THE 10-SECOND TIMER TEST
                     IconButton(
                       onPressed: () async {
                         try {
                           final plugin = FlutterLocalNotificationsPlugin();
-                          await plugin.show(
-                            12345,
-                            'RAW TEST',
-                            'Did this ring?',
+                          
+                          // Force Bangladesh time for the test
+                          tz.initializeTimeZones();
+                          tz.setLocalLocation(tz.getLocation('Asia/Dhaka'));
+
+                          await plugin.zonedSchedule(
+                            54321,
+                            'TIMER TEST',
+                            '10 seconds have passed! Timers work!',
+                            tz.TZDateTime.now(tz.local).add(const Duration(seconds: 10)),
                             const NotificationDetails(
                               android: AndroidNotificationDetails(
-                                'raw_test', 
-                                'Raw Test', 
+                                'timer_test_channel', 
+                                'Timer Test', 
                                 importance: Importance.max, 
                                 priority: Priority.high,
                                 icon: '@mipmap/ic_launcher', 
                               ),
                             ),
+                            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+                            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
                           );
+
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('✅ Signal sent to Android!'), backgroundColor: Colors.green),
+                              const SnackBar(content: Text('⏳ Timer set! Wait 10 seconds...'), backgroundColor: Colors.orange),
                             );
                           }
                         } catch (e) {
@@ -669,7 +680,7 @@ class _TasksScreenState extends State<TasksScreen> {
                           }
                         }
                       },
-                      icon: const Icon(Icons.bug_report, color: Colors.yellowAccent, size: 30),
+                      icon: const Icon(Icons.timer, color: Colors.orangeAccent, size: 30),
                     ),
                   ],
                 ),
