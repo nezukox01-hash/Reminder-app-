@@ -2,14 +2,17 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/task_item.dart';
 import '../services/audio_service.dart';
 import '../utils/colors.dart';
 import '../widgets/assistant_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
-import 'timer_screen.dart';
 import 'reminder_screen.dart';
 import 'tasks_screen.dart';
+import 'timer_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,7 +22,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final int unfinishedTasks = 2;
+  int unfinishedTasks = 0;
 
   bool isAssistantSpeaking = true;
   Timer? _waveTimer;
@@ -31,7 +34,25 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _startWaveAnimation();
-    _playAssistantVoice();
+
+    _loadTaskCount().then((_) {
+      _playAssistantVoice();
+    });
+  }
+
+  Future<void> _loadTaskCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getStringList('ts_tasks_v5') ?? [];
+
+    final tasks = data.map((e) => TaskItem.fromStorage(e)).toList();
+
+    final count = tasks.where((e) => !e.isDone && !e.isSkipped).length;
+
+    if (!mounted) return;
+
+    setState(() {
+      unfinishedTasks = count;
+    });
   }
 
   Future<void> _playAssistantVoice() async {
@@ -51,6 +72,18 @@ class _HomeScreenState extends State<HomeScreen> {
       isAssistantSpeaking = false;
       waveValues = [12, 12, 12, 12, 12, 12, 12];
     });
+  }
+
+  Future<void> _refreshAssistant() async {
+    await _loadTaskCount();
+
+    if (!mounted) return;
+
+    setState(() {
+      isAssistantSpeaking = true;
+    });
+
+    await _playAssistantVoice();
   }
 
   void _startWaveAnimation() {
@@ -158,7 +191,17 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickActionButton(
             icon: Icons.add_task_rounded,
             label: 'Add Task',
-            onTap: () {},
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TasksScreen(),
+                ),
+              );
+
+              if (!mounted) return;
+              await _refreshAssistant();
+            },
           ),
         ),
         const SizedBox(width: 12),
@@ -166,7 +209,17 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickActionButton(
             icon: Icons.notifications_active_outlined,
             label: 'Add Reminder',
-            onTap: () {},
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ReminderScreen(),
+                ),
+              );
+
+              if (!mounted) return;
+              await _refreshAssistant();
+            },
           ),
         ),
       ],
@@ -208,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
 
             if (!mounted) return;
-            setState(() {});
+            await _refreshAssistant();
           },
         ),
         HomeCard(
@@ -224,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
 
             if (!mounted) return;
-            setState(() {});
+            await _refreshAssistant();
           },
         ),
         const HomeCard(
