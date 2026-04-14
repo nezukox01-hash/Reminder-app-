@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/task_helper.dart';
 import '../models/task_item.dart';
+import '../services/audio_service.dart';
 import '../services/task_reminder_service.dart';
 import '../utils/colors.dart';
 import '../widgets/extra/magic_five_bubble.dart';
@@ -540,6 +541,9 @@ class _TasksScreenState extends State<TasksScreen> {
     final index = _tasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
 
+    final int previousPendingCount =
+        _tasks.where((e) => !e.isDone && !e.isSkipped).length;
+
     _tasks[index] = task.copyWith(
       isDone: !task.isDone,
       isSkipped: false,
@@ -554,6 +558,18 @@ class _TasksScreenState extends State<TasksScreen> {
     final updatedTask = _tasks[index];
     await _saveTasks();
     await _scheduleIfNeeded(updatedTask);
+
+    final int currentPendingCount =
+        _tasks.where((e) => !e.isDone && !e.isSkipped).length;
+    final int totalTasks = _tasks.length;
+
+    if (!task.isDone &&
+        updatedTask.isDone &&
+        previousPendingCount > 0 &&
+        currentPendingCount == 0 &&
+        totalTasks > 0) {
+      await AudioService.playAllTasksCompleted();
+    }
   }
 
   Future<void> _skipTask(TaskItem task) async {
