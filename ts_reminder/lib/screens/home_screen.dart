@@ -24,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int unfinishedTasks = 0;
   int totalTasks = 0;
+  int highPriorityPendingCount = 0;
 
   bool isAssistantSpeaking = true;
   bool _hasPlayedOnce = false;
@@ -55,11 +56,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final int pendingCount =
         tasks.where((e) => !e.isDone && !e.isSkipped).length;
 
+    final int highPriorityCount = tasks
+        .where((e) => !e.isDone && !e.isSkipped && e.priority == 3)
+        .length;
+
     if (!mounted) return;
 
     setState(() {
       totalTasks = tasks.length;
       unfinishedTasks = pendingCount;
+      highPriorityPendingCount = highPriorityCount;
     });
   }
 
@@ -110,8 +116,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final greeting = AudioService.getGreetingByTime();
-    final assistantText =
-        AudioService.getAssistantMessage(unfinishedTasks, totalTasks);
+    final assistantText = AudioService.getAssistantMessage(
+      unfinishedTasks,
+      totalTasks,
+      highPriorityPendingCount: highPriorityPendingCount,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
