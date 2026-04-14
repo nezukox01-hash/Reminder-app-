@@ -17,16 +17,32 @@ class AudioService {
     }
   }
 
-  static String getAssistantMessage(int unfinishedTasks, int totalTasks) {
+  static String getAssistantMessage(
+    int unfinishedTasks,
+    int totalTasks, {
+    int highPriorityPendingCount = 0,
+  }) {
     if (totalTasks == 0) {
       return 'No tasks added yet, sir.';
-    } else if (unfinishedTasks == 0) {
-      return 'All tasks completed, sir.';
-    } else if (unfinishedTasks == 1) {
-      return 'You have 1 unfinished task, sir.';
-    } else {
-      return 'You have $unfinishedTasks unfinished tasks, sir.';
     }
+
+    if (unfinishedTasks == 0) {
+      return 'All tasks completed, sir.';
+    }
+
+    if (highPriorityPendingCount > 0) {
+      if (highPriorityPendingCount == 1) {
+        return 'You have 1 high priority task pending, sir.';
+      } else {
+        return 'You have $highPriorityPendingCount high priority tasks pending, sir.';
+      }
+    }
+
+    if (unfinishedTasks == 1) {
+      return 'You have 1 unfinished task, sir.';
+    }
+
+    return 'You have $unfinishedTasks unfinished tasks, sir.';
   }
 
   static String _greetingFileByTime() {
@@ -88,6 +104,38 @@ class AudioService {
     } catch (_) {}
   }
 
+  static Future<void> playTaskCompleted() async {
+    try {
+      await stop();
+      await _player.setAudioSource(
+        AudioSource.asset('assets/audio/assistant/task_completed.mp3'),
+      );
+      await _player.play();
+
+      await _player.playerStateStream.firstWhere(
+        (state) =>
+            state.processingState == ProcessingState.completed ||
+            !state.playing,
+      );
+    } catch (_) {}
+  }
+
+  static Future<void> playTaskSkipped() async {
+    try {
+      await stop();
+      await _player.setAudioSource(
+        AudioSource.asset('assets/audio/assistant/task_skipped.mp3'),
+      );
+      await _player.play();
+
+      await _player.playerStateStream.firstWhere(
+        (state) =>
+            state.processingState == ProcessingState.completed ||
+            !state.playing,
+      );
+    } catch (_) {}
+  }
+
   static Future<void> playAllTasksCompleted() async {
     try {
       await stop();
@@ -95,6 +143,7 @@ class AudioService {
         AudioSource.asset('assets/audio/assistant/all_task_completed.mp3'),
       );
       await _player.play();
+
       await _player.playerStateStream.firstWhere(
         (state) =>
             state.processingState == ProcessingState.completed ||
