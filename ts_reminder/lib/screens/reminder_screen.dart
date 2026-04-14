@@ -331,7 +331,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     if (index == -1) return;
 
     final int previousPendingCount =
-        _reminderTasks.where((e) => !e.isDone && !e.isSkipped).length;
+        _allTasks.where((e) => !e.isDone && !e.isSkipped).length;
 
     final updatedTask = task.copyWith(
       isDone: !task.isDone,
@@ -348,11 +348,12 @@ class _ReminderScreenState extends State<ReminderScreen> {
     }
 
     final int currentPendingCount =
-        _reminderTasks.where((e) => !e.isDone && !e.isSkipped).length;
-    final int totalTasksCount = _reminderTasks.length;
+        _allTasks.where((e) => !e.isDone && !e.isSkipped).length;
+    final int totalTasksCount = _allTasks.length;
 
     if (!task.isDone && updatedTask.isDone) {
       await AudioService.playTaskCompleted();
+
       if (previousPendingCount > 0 &&
           currentPendingCount == 0 &&
           totalTasksCount > 0) {
