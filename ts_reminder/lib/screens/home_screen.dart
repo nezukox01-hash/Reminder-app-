@@ -22,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final int unfinishedTasks = 2;
 
   bool isAssistantSpeaking = true;
-  late Timer _waveTimer;
+  Timer? _waveTimer;
   final Random _random = Random();
 
   List<double> waveValues = [14, 20, 12, 28, 16, 22, 14];
@@ -31,17 +31,31 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _startWaveAnimation();
+    _playAssistantVoice();
+  }
 
-    Future.delayed(const Duration(seconds: 4), () {
-      if (!mounted) return;
-      setState(() {
-        isAssistantSpeaking = false;
-        waveValues = [12, 12, 12, 12, 12, 12, 12];
-      });
+  Future<void> _playAssistantVoice() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (!mounted) return;
+
+    setState(() {
+      isAssistantSpeaking = true;
+    });
+
+    await AudioService.playHomeAssistantSequence(unfinishedTasks);
+
+    if (!mounted) return;
+
+    setState(() {
+      isAssistantSpeaking = false;
+      waveValues = [12, 12, 12, 12, 12, 12, 12];
     });
   }
 
   void _startWaveAnimation() {
+    _waveTimer?.cancel();
+
     _waveTimer = Timer.periodic(const Duration(milliseconds: 220), (_) {
       if (!mounted || !isAssistantSpeaking) return;
 
@@ -56,7 +70,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _waveTimer.cancel();
+    _waveTimer?.cancel();
+    AudioService.stop();
     super.dispose();
   }
 
@@ -180,41 +195,38 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-
         HomeCard(
-  title: 'Reminder',
-  icon: Icons.notifications_active_rounded,
-  color: AppColors.reminder,
-  onTap: () async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ReminderScreen(),
-      ),
-    );
+          title: 'Reminder',
+          icon: Icons.notifications_active_rounded,
+          color: AppColors.reminder,
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ReminderScreen(),
+              ),
+            );
 
-    if (!mounted) return;
-    setState(() {});
-  },
-),
+            if (!mounted) return;
+            setState(() {});
+          },
+        ),
+        HomeCard(
+          title: 'Daily Tasks',
+          icon: Icons.check_circle_rounded,
+          color: AppColors.tasks,
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TasksScreen(),
+              ),
+            );
 
-HomeCard(
-  title: 'Daily Tasks',
-  icon: Icons.check_circle_rounded,
-  color: AppColors.tasks,
-  onTap: () async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const TasksScreen(),
-      ),
-    );
-
-    if (!mounted) return;
-    setState(() {});
-  },
-),
-        
+            if (!mounted) return;
+            setState(() {});
+          },
+        ),
         const HomeCard(
           title: 'Motivation',
           icon: Icons.auto_awesome_rounded,
