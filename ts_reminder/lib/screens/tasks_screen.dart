@@ -786,17 +786,30 @@ class _TasksScreenState extends State<TasksScreen> {
           children: [
             GestureDetector(
               onTap: () => _toggleTask(task),
-              child: Icon(
-                task.isDone
-                    ? Icons.check_circle
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: task.isDone
+                        ? Colors.green
+                        : task.isSkipped
+                            ? Colors.redAccent
+                            : Colors.orange, // 👈 default orange
+                    width: 2,
+                  ),
+                  color: task.isDone
+                      ? Colors.green
+                      : task.isSkipped
+                          ? Colors.redAccent.withOpacity(0.2)
+                          : Colors.transparent,
+                ),
+                child: task.isDone
+                    ? const Icon(Icons.check, size: 16, color: Colors.white)
                     : task.isSkipped
-                        ? Icons.cancel
-                        : Icons.radio_button_unchecked,
-                color: task.isDone
-                    ? Colors.green
-                    : task.isSkipped
-                        ? Colors.redAccent
-                        : Colors.white70,
+                        ? const Icon(Icons.close, size: 16, color: Colors.redAccent)
+                        : null,
               ),
             ),
             const SizedBox(width: 12),
