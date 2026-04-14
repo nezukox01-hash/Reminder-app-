@@ -621,6 +621,59 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
+  Widget _premiumCheckButton({
+    required bool isDone,
+    required bool isSkipped,
+    required VoidCallback onTap,
+  }) {
+    Color borderColor;
+    Color fillColor;
+    IconData? icon;
+
+    if (isDone) {
+      borderColor = const Color(0xFF20C08A);
+      fillColor = const Color(0xFF20C08A);
+      icon = Icons.check;
+    } else if (isSkipped) {
+      borderColor = Colors.redAccent;
+      fillColor = Colors.transparent;
+      icon = Icons.close;
+    } else {
+      borderColor = Colors.orange;
+      fillColor = Colors.transparent;
+      icon = null;
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        height: 28,
+        width: 28,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: fillColor,
+          border: Border.all(color: borderColor, width: 2),
+          boxShadow: [
+            if (isDone)
+              BoxShadow(
+                color: borderColor.withOpacity(0.5),
+                blurRadius: 10,
+              ),
+            if (isSkipped)
+              BoxShadow(
+                color: borderColor.withOpacity(0.4),
+                blurRadius: 8,
+              ),
+          ],
+        ),
+        child: icon != null
+            ? Icon(icon, size: 18, color: Colors.white)
+            : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -785,56 +838,29 @@ class _TasksScreenState extends State<TasksScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
+          border: Border.all(
+            color: task.isDone
+                ? const Color(0xFF20C08A).withOpacity(0.3)
+                : task.isSkipped
+                    ? Colors.redAccent.withOpacity(0.3)
+                    : Colors.transparent,
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 10,
-              offset: const Offset(0, 6),
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            if (task.isDone)
-              BoxShadow(
-                color: Colors.green.withOpacity(0.4),
-                blurRadius: 14,
-                spreadRadius: 1,
-              ),
-            if (task.isSkipped)
-              BoxShadow(
-                color: Colors.redAccent.withOpacity(0.4),
-                blurRadius: 14,
-                spreadRadius: 1,
-              ),
           ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GestureDetector(
+            _premiumCheckButton(
+              isDone: task.isDone,
+              isSkipped: task.isSkipped,
               onTap: () => _toggleTask(task),
-              child: Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: task.isDone
-                        ? Colors.green
-                        : task.isSkipped
-                            ? Colors.redAccent
-                            : Colors.orange,
-                    width: 2,
-                  ),
-                  color: task.isDone
-                      ? Colors.green
-                      : task.isSkipped
-                          ? Colors.redAccent.withOpacity(0.2)
-                          : Colors.transparent,
-                ),
-                child: task.isDone
-                    ? const Icon(Icons.check, size: 16, color: Colors.white)
-                    : task.isSkipped
-                        ? const Icon(Icons.close, size: 16, color: Colors.redAccent)
-                        : null,
-              ),
             ),
             const SizedBox(width: 12),
             Expanded(
