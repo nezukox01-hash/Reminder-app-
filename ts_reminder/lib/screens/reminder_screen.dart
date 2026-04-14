@@ -533,7 +533,8 @@ class _ReminderTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
@@ -542,6 +543,25 @@ class _ReminderTile extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            ),
+            if (task.isDone)
+              BoxShadow(
+                color: Colors.green.withOpacity(0.4),
+                blurRadius: 14,
+                spreadRadius: 1,
+              ),
+            if (task.isSkipped)
+              BoxShadow(
+                color: Colors.redAccent.withOpacity(0.4),
+                blurRadius: 14,
+                spreadRadius: 1,
+              ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
