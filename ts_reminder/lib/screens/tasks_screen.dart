@@ -775,11 +775,35 @@ class _TasksScreenState extends State<TasksScreen> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          color: Colors.white.withOpacity(0.05),
+          gradient: const LinearGradient(
+            colors: [AppColors.surface2, AppColors.surface],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            ),
+            if (task.isDone)
+              BoxShadow(
+                color: Colors.green.withOpacity(0.4),
+                blurRadius: 14,
+                spreadRadius: 1,
+              ),
+            if (task.isSkipped)
+              BoxShadow(
+                color: Colors.redAccent.withOpacity(0.4),
+                blurRadius: 14,
+                spreadRadius: 1,
+              ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -796,7 +820,7 @@ class _TasksScreenState extends State<TasksScreen> {
                         ? Colors.green
                         : task.isSkipped
                             ? Colors.redAccent
-                            : Colors.orange, // 👈 default orange
+                            : Colors.orange,
                     width: 2,
                   ),
                   color: task.isDone
