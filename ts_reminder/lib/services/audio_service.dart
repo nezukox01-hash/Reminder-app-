@@ -88,6 +88,21 @@ class AudioService {
     } catch (_) {}
   }
 
+  static Future<void> playAllTasksCompleted() async {
+    try {
+      await stop();
+      await _player.setAudioSource(
+        AudioSource.asset('assets/audio/assistant/all_task_completed.mp3'),
+      );
+      await _player.play();
+      await _player.playerStateStream.firstWhere(
+        (state) =>
+            state.processingState == ProcessingState.completed ||
+            !state.playing,
+      );
+    } catch (_) {}
+  }
+
   static Future<void> stop() async {
     try {
       await _player.stop();
