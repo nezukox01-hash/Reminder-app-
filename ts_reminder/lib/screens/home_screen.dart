@@ -23,8 +23,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int unfinishedTasks = 0;
+  int totalTasks = 0;
 
   bool isAssistantSpeaking = true;
+  bool _hasPlayedOnce = false;
+
   Timer? _waveTimer;
   final Random _random = Random();
 
@@ -35,23 +38,28 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _startWaveAnimation();
 
-    _loadTaskCount().then((_) {
-      _playAssistantVoice();
+    _loadTaskData().then((_) {
+      if (!_hasPlayedOnce) {
+        _hasPlayedOnce = true;
+        _playAssistantVoice();
+      }
     });
   }
 
-  Future<void> _loadTaskCount() async {
+  Future<void> _loadTaskData() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getStringList('ts_tasks_v5') ?? [];
 
     final tasks = data.map((e) => TaskItem.fromStorage(e)).toList();
 
-    final count = tasks.where((e) => !e.isDone && !e.isSkipped).length;
+    final int pendingCount =
+        tasks.where((e) => !e.isDone && !e.isSkipped).length;
 
     if (!mounted) return;
 
     setState(() {
-      unfinishedTasks = count;
+      totalTasks = tasks.length;
+      unfinishedTasks = pendingCount;
     });
   }
 
@@ -64,7 +72,10 @@ class _HomeScreenState extends State<HomeScreen> {
       isAssistantSpeaking = true;
     });
 
-    await AudioService.playHomeAssistantSequence(unfinishedTasks);
+    await AudioService.playHomeAssistantSequence(
+      unfinishedTasks,
+      totalTasks,
+    );
 
     if (!mounted) return;
 
@@ -72,18 +83,6 @@ class _HomeScreenState extends State<HomeScreen> {
       isAssistantSpeaking = false;
       waveValues = [12, 12, 12, 12, 12, 12, 12];
     });
-  }
-
-  Future<void> _refreshAssistant() async {
-    await _loadTaskCount();
-
-    if (!mounted) return;
-
-    setState(() {
-      isAssistantSpeaking = true;
-    });
-
-    await _playAssistantVoice();
   }
 
   void _startWaveAnimation() {
@@ -111,7 +110,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final greeting = AudioService.getGreetingByTime();
-    final assistantText = AudioService.getAssistantMessage(unfinishedTasks);
+    final assistantText =
+        AudioService.getAssistantMessage(unfinishedTasks, totalTasks);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -200,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
 
               if (!mounted) return;
-              await _refreshAssistant();
+              await _loadTaskData();
             },
           ),
         ),
@@ -218,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
 
               if (!mounted) return;
-              await _refreshAssistant();
+              await _loadTaskData();
             },
           ),
         ),
@@ -261,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
 
             if (!mounted) return;
-            await _refreshAssistant();
+            await _loadTaskData();
           },
         ),
         HomeCard(
@@ -277,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
 
             if (!mounted) return;
-            await _refreshAssistant();
+            await _loadTaskData();
           },
         ),
         const HomeCard(
