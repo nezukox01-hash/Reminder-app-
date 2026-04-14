@@ -426,18 +426,18 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _applySkipTask(TaskItem task) async {
     final index = _tasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
-    
+
     _tasks[index] = task.copyWith(
       isSkipped: true,
       isDone: false,
     );
-    
+
     _sortTasks();
-    
+
     if (mounted) {
       setState(() {});
     }
-    
+
     await _saveTasks();
     await TaskReminderService.cancelTaskReminder(task.id);
     await AudioService.playTaskSkipped();
@@ -541,32 +541,36 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _toggleTask(TaskItem task) async {
     final index = _tasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
-    
-    final int previousPendingCount = _tasks.where((e) => !e.isDone && !e.isSkipped).length;
-    
-    _tasks[index] = task.copyWith(
+
+    final int previousPendingCount =
+        _tasks.where((e) => !e.isDone && !e.isSkipped).length;
+
+    final updatedTask = task.copyWith(
       isDone: !task.isDone,
       isSkipped: false,
     );
-    
+
+    _tasks[index] = updatedTask;
+
     _sortTasks();
-    
+
     if (mounted) {
       setState(() {});
     }
-    
-    final updatedTask = _tasks[index];
+
     await _saveTasks();
     await _scheduleIfNeeded(updatedTask);
-    
-    final int currentPendingCount = _tasks.where((e) => !e.isDone && !e.isSkipped).length;
+
+    final int currentPendingCount =
+        _tasks.where((e) => !e.isDone && !e.isSkipped).length;
     final int totalTasksCount = _tasks.length;
-    
+
     if (!task.isDone && updatedTask.isDone) {
-      if (previousPendingCount > 0 && currentPendingCount == 0 && totalTasksCount > 0) {
+      await AudioService.playTaskCompleted();
+      if (previousPendingCount > 0 &&
+          currentPendingCount == 0 &&
+          totalTasksCount > 0) {
         await AudioService.playAllTasksCompleted();
-      } else {
-        await AudioService.playTaskCompleted();
       }
     }
   }
