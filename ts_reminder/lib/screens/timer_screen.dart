@@ -23,6 +23,11 @@ class _TimerScreenState extends State<TimerScreen>
   static const String breakMinutesKey = 'break_minutes';
   static const String completedSessionsKey = 'completed_focus_sessions';
   static const String totalStudySecondsKey = 'total_study_seconds';
+  
+  // Daily Keys
+  static const String dailyTimerDateKey = 'daily_timer_date';
+  static const String dailyCompletedSessionsKey = 'daily_completed_focus_sessions';
+  static const String dailyStudySecondsKey = 'daily_study_seconds';
 
   SharedPreferences? _prefs;
   Timer? _ticker;
@@ -37,6 +42,10 @@ class _TimerScreenState extends State<TimerScreen>
   int _remainingSeconds = 25 * 60;
   int _completedSessions = 0;
   int _totalStudySeconds = 0;
+  
+  // Daily Vars
+  int _dailyCompletedSessions = 0;
+  int _dailyStudySeconds = 0;
 
   int? _phaseEndMillis;
 
@@ -62,42 +71,66 @@ class _TimerScreenState extends State<TimerScreen>
     }
   }
 
+  String get _todayDateKey {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _ensureDailyStatsFresh() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    
+    final savedDate = prefs.getString(dailyTimerDateKey) ?? '';
+    if (savedDate != _todayDateKey) {
+      _dailyCompletedSessions = 0;
+      _dailyStudySeconds = 0;
+      await prefs.setString(dailyTimerDateKey, _todayDateKey);
+      await prefs.setInt(dailyCompletedSessionsKey, 0);
+      await prefs.setInt(dailyStudySecondsKey, 0);
+    }
+  }
+
   Future<void> _initialize() async {
     _prefs = await SharedPreferences.getInstance();
+    await _ensureDailyStatsFresh();
     await _restoreState();
   }
 
   Future<void> _restoreState() async {
     final prefs = _prefs;
     if (prefs == null) return;
-
+    
+    await _ensureDailyStatsFresh();
+    
     _phase = (prefs.getString(phaseKey) ?? 'focus') == 'focus'
         ? TimerPhase.focus
         : TimerPhase.breakTime;
-
+        
     _isRunning = prefs.getBool(runningKey) ?? false;
     _isPaused = prefs.getBool(pausedKey) ?? false;
     _phaseEndMillis = prefs.getInt(endMillisKey);
-
+    
     _focusMinutes = prefs.getInt(focusMinutesKey) ?? 25;
     _breakMinutes = prefs.getInt(breakMinutesKey) ?? 5;
     _completedSessions = prefs.getInt(completedSessionsKey) ?? 0;
     _totalStudySeconds = prefs.getInt(totalStudySecondsKey) ?? 0;
-
+    _dailyCompletedSessions = prefs.getInt(dailyCompletedSessionsKey) ?? 0;
+    _dailyStudySeconds = prefs.getInt(dailyStudySecondsKey) ?? 0;
+    
     _remainingSeconds = prefs.getInt(remainingKey) ??
         (_phase == TimerPhase.focus ? _focusMinutes * 60 : _breakMinutes * 60);
-
+        
     if (_isRunning && !_isPaused && _phaseEndMillis != null) {
       _catchUp();
       _startTicker();
     }
-
+    
     if (!_isRunning && !_isPaused) {
       _remainingSeconds = _phase == TimerPhase.focus
           ? _focusMinutes * 60
           : _breakMinutes * 60;
     }
-
+    
     if (mounted) {
       setState(() {});
     }
@@ -106,7 +139,7 @@ class _TimerScreenState extends State<TimerScreen>
   Future<void> _saveState() async {
     final prefs = _prefs;
     if (prefs == null) return;
-
+    
     await prefs.setString(
       phaseKey,
       _phase == TimerPhase.focus ? 'focus' : 'break',
@@ -118,7 +151,11 @@ class _TimerScreenState extends State<TimerScreen>
     await prefs.setInt(breakMinutesKey, _breakMinutes);
     await prefs.setInt(completedSessionsKey, _completedSessions);
     await prefs.setInt(totalStudySecondsKey, _totalStudySeconds);
-
+    
+    await prefs.setString(dailyTimerDateKey, _todayDateKey);
+    await prefs.setInt(dailyCompletedSessionsKey, _dailyCompletedSessions);
+    await prefs.setInt(dailyStudySecondsKey, _dailyStudySeconds);
+    
     if (_phaseEndMillis != null) {
       await prefs.setInt(endMillisKey, _phaseEndMillis!);
     } else {
@@ -134,14 +171,17 @@ class _TimerScreenState extends State<TimerScreen>
 
   void _catchUp() {
     if (_phaseEndMillis == null) return;
-
+    
     final now = DateTime.now().millisecondsSinceEpoch;
     int end = _phaseEndMillis!;
-
+    
     while (now >= end) {
       if (_phase == TimerPhase.focus) {
         _completedSessions += 1;
         _totalStudySeconds += _focusMinutes * 60;
+        _dailyCompletedSessions += 1;
+        _dailyStudySeconds += _focusMinutes * 60;
+        
         _phase = TimerPhase.breakTime;
         end += _breakMinutes * 60 * 1000;
       } else {
@@ -153,7 +193,7 @@ class _TimerScreenState extends State<TimerScreen>
         return;
       }
     }
-
+    
     _phaseEndMillis = end;
     _remainingSeconds = ((end - now) / 1000).ceil();
     if (_remainingSeconds < 0) _remainingSeconds = 0;
@@ -239,22 +279,23 @@ class _TimerScreenState extends State<TimerScreen>
 
   void _goToNextPhase() {
     _ticker?.cancel();
-
+    
     if (_phase == TimerPhase.focus) {
       _completedSessions += 1;
       _totalStudySeconds += _focusMinutes * 60;
-
+      _dailyCompletedSessions += 1;
+      _dailyStudySeconds += _focusMinutes * 60;
+      
       _phase = TimerPhase.breakTime;
       _remainingSeconds = _breakMinutes * 60;
       _isRunning = true;
       _isPaused = false;
       _phaseEndMillis =
           DateTime.now().millisecondsSinceEpoch + (_remainingSeconds * 1000);
-
+          
       if (mounted) {
         setState(() {});
       }
-
       _startTicker();
     } else {
       _phase = TimerPhase.focus;
@@ -262,12 +303,11 @@ class _TimerScreenState extends State<TimerScreen>
       _isRunning = false;
       _isPaused = false;
       _phaseEndMillis = null;
-
+      
       if (mounted) {
         setState(() {});
       }
     }
-
     _saveState();
   }
 
