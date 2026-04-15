@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/audio_service.dart';
+import '../services/daily_task_reset_service.dart'; // ✅ Added
 import '../utils/colors.dart';
 import '../widgets/extra/skip_motivation_dialog.dart';
 import '../widgets/extra/magic_five_bubble.dart';
@@ -109,6 +110,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
   }
 
   Future<void> _loadTasks({bool silentIfUnchanged = false}) async {
+    // ✅ Check day rollover before loading tasks
+    await DailyTaskResetService.handleDayRollover();
+
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getStringList(storageKey) ?? [];
     final snapshot = data.join('###');
@@ -212,9 +216,45 @@ class _ReminderScreenState extends State<ReminderScreen> {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
+  // ✅ NEW: Common Popup Logic Check for Reminders
+  Future<void> _checkAllCompleted(int previousPending, int currentPending, int total) async {
+    if (previousPending > 0 && currentPending == 0 && total > 0) {
+      await AudioService.playAllTasksCompleted();
+      
+      if (!mounted) return;
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF102643),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text('All Tasks Finished!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+          content: const Text('You have finished all active tasks. Do you want to finalize today\'s report and clear the list?', style: TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Not Yet', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF20C08A)),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Yes, Clear', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        await DailyTaskResetService.finalizeTodayAndClearTasks();
+        await _loadTasks();
+      }
+    }
+  }
+
   Future<void> _applySkipTask(ReminderTaskItem task) async {
     final index = _allTasks.indexWhere((e) => e.id == task.id);
     if (index == -1) return;
+
+    final int previousPendingCount = _allTasks.where((e) => !e.isDone && !e.isSkipped).length;
 
     _allTasks[index] = task.copyWith(
       isSkipped: true,
@@ -227,6 +267,12 @@ class _ReminderScreenState extends State<ReminderScreen> {
     if (mounted) {
       setState(() {});
     }
+
+    final int currentPendingCount = _allTasks.where((e) => !e.isDone && !e.isSkipped).length;
+    final int totalTasksCount = _allTasks.length;
+
+    // ✅ Check if it was the last task
+    await _checkAllCompleted(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
   Future<void> _showMotivationDialog(ReminderTaskItem task) async {
@@ -353,13 +399,10 @@ class _ReminderScreenState extends State<ReminderScreen> {
 
     if (!task.isDone && updatedTask.isDone) {
       await AudioService.playTaskCompleted();
-
-      if (previousPendingCount > 0 &&
-          currentPendingCount == 0 &&
-          totalTasksCount > 0) {
-        await AudioService.playAllTasksCompleted();
-      }
     }
+
+    // ✅ Check if all tasks are done
+    await _checkAllCompleted(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
   Future<void> _skipTask(ReminderTaskItem task) async {
