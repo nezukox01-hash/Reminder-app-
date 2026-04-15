@@ -23,6 +23,9 @@ class _TasksScreenState extends State<TasksScreen> {
   final List<TaskItem> _tasks = [];
   SharedPreferences? _prefs;
   OverlayEntry? _magicFiveEntry;
+  
+  // ✅ NEW: Flag to prevent repeated post-load popups
+  bool _hasShownAllDonePopup = false; 
 
   @override
   void initState() {
@@ -53,6 +56,9 @@ class _TasksScreenState extends State<TasksScreen> {
     if (mounted) {
       setState(() {});
     }
+    
+    // ✅ Check if all tasks are completed immediately after loading
+    await _checkAndShowAllDonePopup();
   }
 
   Future<void> _saveTasks() async {
@@ -139,6 +145,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildField(
+                    // line numbers are just for reference and do not need to be typed
                       label: 'Task Title',
                       controller: titleController,
                     ),
@@ -428,8 +435,60 @@ class _TasksScreenState extends State<TasksScreen> {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
-  // ✅ NEW: Common Popup Logic Check
-  Future<void> _checkAllCompleted(int previousPending, int currentPending, int total) async {
+  // ✅ NEW: Post-Load Safety Popup Logic Check
+  Future<void> _checkAndShowAllDonePopup() async {
+    final hasTasks = _tasks.isNotEmpty;
+    final hasActiveTasks = _tasks.any((e) => !e.isDone && !e.isSkipped);
+    
+    // If list is empty, or there are still active tasks, reset flag and return.
+    if (!hasTasks || hasActiveTasks) {
+      _hasShownAllDonePopup = false;
+      return;
+    }
+    
+    // If flag is true, we already shown it in this session, return.
+    if (_hasShownAllDonePopup) return;
+    
+    _hasShownAllDonePopup = true; // Set flag so it only shows once per page entry
+    
+    if (!mounted) return;
+    
+    // ✅ Wait for the list to render, then show popup
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF102643),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Text('All Tasks Completed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+            content: const Text('Are you sure?\n\nIf yes, today\'s tasks will be removed and counted in stats.', style: TextStyle(color: Colors.white70, height: 1.5)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('No', style: TextStyle(color: Colors.white70)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4D88F8)),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Yes', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      );
+      
+      if (result == true) {
+        await DailyTaskResetService.finalizeTodayAndClearTasks();
+        await _loadTasks();
+      }
+    });
+  }
+
+  // ✅ UPDATED: Call Popup Logic Check on Toggle/Skip
+  Future<void> _checkAllCompletedToggle(int previousPending, int currentPending, int total) async {
     if (previousPending > 0 && currentPending == 0 && total > 0) {
       await AudioService.playAllTasksCompleted();
       
@@ -487,7 +546,7 @@ class _TasksScreenState extends State<TasksScreen> {
     final int totalTasksCount = _tasks.length;
     
     // ✅ Check if it was the last task
-    await _checkAllCompleted(previousPendingCount, currentPendingCount, totalTasksCount);
+    await _checkAllCompletedToggle(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
   Future<void> _showHighPrioritySkipWarning(TaskItem task) async {
@@ -617,7 +676,7 @@ class _TasksScreenState extends State<TasksScreen> {
     }
     
     // ✅ Check if all tasks are done
-    await _checkAllCompleted(previousPendingCount, currentPendingCount, totalTasksCount);
+    await _checkAllCompletedToggle(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
   Future<void> _skipTask(TaskItem task) async {
