@@ -19,7 +19,8 @@ class _StatsScreenState extends State<StatsScreen> {
       'daily_completed_focus_sessions';
   static const String dailyStudySecondsKey = 'daily_study_seconds';
 
-  List<DailyReport> reports = [];
+  List<DailyReport> _savedReports = [];
+  List<DailyReport> _displayLogs = [];
 
   int completedTasks = 0;
   int skippedTasks = 0;
@@ -41,10 +42,13 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> _loadEverything() async {
-    await Future.wait([
-      _loadLiveStats(),
-      _loadReports(),
-    ]);
+    setState(() {
+      _isLoading = true;
+    });
+
+    await _loadLiveStats();
+    await _loadReports();
+    _buildDisplayLogs();
 
     if (!mounted) return;
 
@@ -55,7 +59,6 @@ class _StatsScreenState extends State<StatsScreen> {
 
   Future<void> _loadLiveStats() async {
     final prefs = await SharedPreferences.getInstance();
-
     final taskData = prefs.getStringList(tasksStorageKey) ?? [];
 
     int completed = 0;
@@ -102,20 +105,55 @@ class _StatsScreenState extends State<StatsScreen> {
     if (!mounted) return;
 
     setState(() {
-      reports = data;
+      _savedReports = data;
     });
   }
 
-  Future<void> _refresh() async {
-    setState(() {
-      _isLoading = true;
-    });
+  void _buildDisplayLogs() {
+    final List<DailyReport> logs = List<DailyReport>.from(_savedReports);
 
+    final int todayIndex = logs.indexWhere((e) => e.date == todayDate);
+
+    if (todayIndex != -1) {
+      final existing = logs[todayIndex];
+
+      logs[todayIndex] = existing.copyWith(
+        completedTasks: completedTasks,
+        skippedTasks: skippedTasks,
+        pendingTasks: pendingTasks,
+        focusSessions: focusSessions,
+        studyMinutes: studyMinutes,
+      );
+    } else {
+      logs.insert(
+        0,
+        DailyReport(
+          date: todayDate,
+          completedTasks: completedTasks,
+          skippedTasks: skippedTasks,
+          pendingTasks: pendingTasks,
+          focusSessions: focusSessions,
+          studyMinutes: studyMinutes,
+          rating: 0,
+          note: '',
+        ),
+      );
+    }
+
+    logs.sort((a, b) => b.date.compareTo(a.date));
+    _displayLogs = logs;
+  }
+
+  Future<void> _refresh() async {
     await _loadEverything();
   }
 
   @override
   Widget build(BuildContext context) {
+    final todayTasksDone = completedTasks + skippedTasks;
+    final totalTodayTasks = completedTasks + skippedTasks + pendingTasks;
+    final savedReportsCount = _savedReports.length;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Container(
@@ -132,18 +170,35 @@ class _StatsScreenState extends State<StatsScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                     children: [
-                      const Text(
-                        'Stats',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 30,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const Expanded(
+                            child: Text(
+                              'Stats',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 30,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 18),
-                      _buildTodayOverviewCard(),
+                      _buildTodayOverviewCard(
+                        todayTasksDone: todayTasksDone,
+                        totalTodayTasks: totalTodayTasks,
+                        savedReportsCount: savedReportsCount,
+                      ),
                       const SizedBox(height: 20),
-                      _buildSavedLogsCard(),
+                      _buildDailyLogsCard(),
                     ],
                   ),
                 ),
@@ -152,11 +207,11 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildTodayOverviewCard() {
-    final todayTasksDone = completedTasks + skippedTasks;
-    final totalTodayTasks = completedTasks + skippedTasks + pendingTasks;
-    final savedReportsCount = reports.length;
-
+  Widget _buildTodayOverviewCard({
+    required int todayTasksDone,
+    required int totalTodayTasks,
+    required int savedReportsCount,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -245,7 +300,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildSavedLogsCard() {
+  Widget _buildDailyLogsCard() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -279,7 +334,7 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          if (reports.isEmpty)
+          if (_displayLogs.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(18),
@@ -288,7 +343,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 color: Colors.white.withOpacity(0.05),
               ),
               child: const Text(
-                'No saved daily reports yet.',
+                'No daily logs yet.',
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 14,
@@ -297,7 +352,7 @@ class _StatsScreenState extends State<StatsScreen> {
             )
           else
             Column(
-              children: reports.map((report) {
+              children: _displayLogs.map((report) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 14),
                   child: _dailyLogItem(report),
@@ -310,12 +365,22 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _dailyLogItem(DailyReport report) {
+    final tasksDone = report.completedTasks + report.skippedTasks;
+    final totalTasks =
+        report.completedTasks + report.skippedTasks + report.pendingTasks;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         color: Colors.white.withOpacity(0.06),
+        border: Border.all(
+          color: report.date == todayDate
+              ? Colors.white.withOpacity(0.10)
+              : Colors.transparent,
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,13 +403,21 @@ class _StatsScreenState extends State<StatsScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Tasks Done: ${report.completedTasks}',
+            'Tasks Done: $tasksDone/$totalTasks',
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 15,
             ),
           ),
           const SizedBox(height: 6),
+          Text(
+            'Focus Sessions: ${report.focusSessions}',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               const Text(
