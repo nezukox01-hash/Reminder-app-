@@ -21,12 +21,14 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> _loadReports() async {
-    final data = await DailyReportService.getAllReports();
+    // ✅ FIXED: Changed getAllReports() to getReports()
+    final data = await DailyReportService.getReports();
 
     if (!mounted) return;
 
     setState(() {
-      reports = data.reversed.toList(); // latest first
+      // ✅ FIXED: Removed .reversed.toList() to keep the original safe order
+      reports = data; 
     });
   }
 
