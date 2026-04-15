@@ -92,6 +92,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
   Timer? _pollTimer;
   String _lastSnapshot = '';
   OverlayEntry? _magicFiveEntry;
+  
+  // ✅ NEW: Flag to prevent repeated post-load popups
+  bool _hasShownAllDonePopup = false; 
 
   @override
   void initState() {
@@ -129,6 +132,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
     if (mounted) {
       setState(() {});
     }
+    
+    // ✅ Check if all tasks are completed immediately after loading
+    await _checkAndShowAllDonePopup();
   }
 
   Future<void> _saveTasks() async {
@@ -216,8 +222,52 @@ class _ReminderScreenState extends State<ReminderScreen> {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
-  // ✅ NEW: Common Popup Logic Check for Reminders
-  Future<void> _checkAllCompleted(int previousPending, int currentPending, int total) async {
+  // ✅ NEW: Post-Load Safety Popup Logic Check for Reminders
+  Future<void> _checkAndShowAllDonePopup() async {
+    final hasTasks = _allTasks.isNotEmpty;
+    final hasActiveTasks = _allTasks.any((e) => !e.isDone && !e.isSkipped);
+    
+    if (!hasTasks || hasActiveTasks) {
+      _hasShownAllDonePopup = false;
+      return;
+    }
+    if (_hasShownAllDonePopup) return;
+    
+    _hasShownAllDonePopup = true;
+    if (!mounted) return;
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF102643),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Text('All Tasks Completed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+            content: const Text('Are you sure?\n\nIf yes, today\'s tasks will be removed and counted in stats.', style: TextStyle(color: Colors.white70, height: 1.5)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No', style: TextStyle(color: Colors.white70))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4D88F8)),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Yes', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      );
+      
+      if (result == true) {
+        await DailyTaskResetService.finalizeTodayAndClearTasks();
+        await _loadTasks();
+      }
+    });
+  }
+
+  // ✅ UPDATED: Call Popup Logic Check on Toggle/Skip
+  Future<void> _checkAllCompletedToggle(int previousPending, int currentPending, int total) async {
     if (previousPending > 0 && currentPending == 0 && total > 0) {
       await AudioService.playAllTasksCompleted();
       
@@ -272,7 +322,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final int totalTasksCount = _allTasks.length;
 
     // ✅ Check if it was the last task
-    await _checkAllCompleted(previousPendingCount, currentPendingCount, totalTasksCount);
+    await _checkAllCompletedToggle(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
   Future<void> _showMotivationDialog(ReminderTaskItem task) async {
@@ -402,7 +452,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     }
 
     // ✅ Check if all tasks are done
-    await _checkAllCompleted(previousPendingCount, currentPendingCount, totalTasksCount);
+    await _checkAllCompletedToggle(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
   Future<void> _skipTask(ReminderTaskItem task) async {
