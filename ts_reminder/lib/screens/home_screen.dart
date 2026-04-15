@@ -10,6 +10,7 @@ import '../utils/colors.dart';
 import '../widgets/assistant_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
+import 'daily_report_screen.dart';
 import 'reminder_screen.dart';
 import 'tasks_screen.dart';
 import 'timer_screen.dart';
@@ -126,7 +127,32 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppColors.background,
       bottomNavigationBar: AppBottomNavBar(
         currentIndex: 2,
-        onTap: (index) {},
+        onTap: (index) async {
+          if (index == 0) {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TimerScreen(),
+              ),
+            );
+          } else if (index == 1) {
+            // Stats screen later
+          } else if (index == 2) {
+            return;
+          } else if (index == 3) {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const DailyReportScreen(),
+              ),
+            );
+          } else if (index == 4) {
+            // Notes screen later
+          }
+
+          if (!mounted) return;
+          await _loadTaskData();
+        },
       ),
       body: Container(
         decoration: const BoxDecoration(
