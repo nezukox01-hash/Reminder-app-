@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/daily_report_model.dart';
 import '../services/daily_report_service.dart';
@@ -15,19 +16,97 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   int rating = 0;
   final TextEditingController noteController = TextEditingController();
 
-  // 🔹 Dummy values এখন (later real data connect করবো)
   int completedTasks = 0;
   int skippedTasks = 0;
   int pendingTasks = 0;
   int focusSessions = 0;
   int studyMinutes = 0;
 
+  bool _isSaving = false;
+
   String get todayDate {
     final now = DateTime.now();
-    return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTaskStats();
+    _loadExistingReport();
+  }
+
+  @override
+  void dispose() {
+    noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadTaskStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getStringList('ts_tasks_v5') ?? [];
+
+    int completed = 0;
+    int skipped = 0;
+    int pending = 0;
+
+    for (final item in data) {
+      final parts = item.split('||');
+
+      final isDone = parts.length > 3 && parts[3] == 'true';
+      final isSkipped = parts.length > 4 && parts[4] == 'true';
+
+      if (isDone) {
+        completed++;
+      } else if (isSkipped) {
+        skipped++;
+      } else {
+        pending++;
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      completedTasks = completed;
+      skippedTasks = skipped;
+      pendingTasks = pending;
+
+      // 🔹 timer data later real connect korbo
+      focusSessions = 0;
+      studyMinutes = 0;
+    });
+  }
+
+  Future<void> _loadExistingReport() async {
+    final report = await DailyReportService.getReportByDate(todayDate);
+    if (report == null || !mounted) return;
+
+    setState(() {
+      rating = report.rating;
+      noteController.text = report.note;
+      completedTasks = report.completedTasks;
+      skippedTasks = report.skippedTasks;
+      pendingTasks = report.pendingTasks;
+      focusSessions = report.focusSessions;
+      studyMinutes = report.studyMinutes;
+    });
   }
 
   Future<void> _saveReport() async {
+    if (rating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please give rating ⭐'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
     final report = DailyReport(
       date: todayDate,
       completedTasks: completedTasks,
@@ -42,6 +121,10 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     await DailyReportService.saveReport(report);
 
     if (!mounted) return;
+
+    setState(() {
+      _isSaving = false;
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -60,34 +143,43 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         ),
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
-              const Text(
-                'Daily Report',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w900,
-                ),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Daily Report',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
 
-              /// 🔹 AUTO STATS CARD
               _buildStatsCard(),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
 
-              /// ⭐ RATING
               _buildRatingCard(),
 
               const SizedBox(height: 16),
 
-              /// 📝 NOTE
               _buildNoteCard(),
 
               const SizedBox(height: 24),
 
-              /// 💾 SAVE BUTTON
               _buildSaveButton(),
             ],
           ),
@@ -100,16 +192,31 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [AppColors.surface2, AppColors.surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          _statRow("Study Time", "$studyMinutes min"),
-          _statRow("Completed Tasks", "$completedTasks"),
-          _statRow("Skipped Tasks", "$skippedTasks"),
-          _statRow("Pending Tasks", "$pendingTasks"),
-          _statRow("Focus Sessions", "$focusSessions"),
+          _statRow('Study Time', '$studyMinutes min'),
+          _divider(),
+          _statRow('Completed Tasks', '$completedTasks'),
+          _divider(),
+          _statRow('Skipped Tasks', '$skippedTasks'),
+          _divider(),
+          _statRow('Pending Tasks', '$pendingTasks'),
+          _divider(),
+          _statRow('Focus Sessions', '$focusSessions'),
         ],
       ),
     );
@@ -117,19 +224,23 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
 
   Widget _statRow(String title, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: [
           Text(
             title,
-            style: const TextStyle(color: Colors.white70),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 15,
+            ),
           ),
           const Spacer(),
           Text(
             value,
             style: const TextStyle(
               color: Colors.white,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
             ),
           ),
         ],
@@ -137,18 +248,32 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     );
   }
 
-  /// ⭐ RATING CARD
+  Widget _divider() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      height: 1,
+      color: Colors.white.withOpacity(0.06),
+    );
+  }
+
   Widget _buildRatingCard() {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        color: Colors.amber.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.amber.withOpacity(0.14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.amber.withOpacity(0.10),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
           const Text(
-            "Rate your day",
+            'Rate your day',
             style: TextStyle(
               color: Colors.white,
               fontSize: 16,
@@ -167,8 +292,8 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                   });
                 },
                 icon: Icon(
-                  Icons.star,
-                  size: 32,
+                  Icons.star_rounded,
+                  size: 34,
                   color: i <= rating ? Colors.amber : Colors.white24,
                 ),
               );
@@ -179,20 +304,26 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     );
   }
 
-  /// 📝 NOTE CARD
   Widget _buildNoteCard() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         color: Colors.blue.withOpacity(0.08),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: TextField(
         controller: noteController,
-        maxLines: 4,
+        maxLines: 5,
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
-          hintText: "Write your progress note...",
+          hintText: 'Write your progress note...',
           hintStyle: TextStyle(color: Colors.white54),
           border: InputBorder.none,
         ),
@@ -200,25 +331,34 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     );
   }
 
-  /// 💾 SAVE BUTTON
   Widget _buildSaveButton() {
     return ElevatedButton(
-      onPressed: rating == 0 ? null : _saveReport,
+      onPressed: _isSaving ? null : _saveReport,
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF4D88F8),
+        disabledBackgroundColor: const Color(0xFF4D88F8).withOpacity(0.5),
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
         ),
       ),
-      child: const Text(
-        "Save Report",
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-          color: Colors.white,
-        ),
-      ),
+      child: _isSaving
+          ? const SizedBox(
+              height: 22,
+              width: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.4,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+          : const Text(
+              'Save Report',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.white,
+              ),
+            ),
     );
   }
 }
