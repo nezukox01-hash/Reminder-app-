@@ -12,6 +12,7 @@ import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
 import 'daily_report_screen.dart';
 import 'reminder_screen.dart';
+import 'stats_screen.dart'; // ✅ Added StatsScreen import
 import 'tasks_screen.dart';
 import 'timer_screen.dart';
 
@@ -136,7 +137,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           } else if (index == 1) {
-            // Stats screen later
+            // ✅ Updated Stats screen navigation
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const StatsScreen(),
+              ),
+            );
           } else if (index == 2) {
             return;
           } else if (index == 3) {
