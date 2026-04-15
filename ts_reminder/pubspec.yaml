@@ -11,16 +11,17 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # 🔔 Notifications
+  # Notifications
   flutter_local_notifications: ^17.2.1
   timezone: ^0.9.4
-  flutter_timezone: ^3.0.0 # 👈 ADDED to fix UTC timezone offset
+  flutter_timezone: ^3.0.0
+  android_alarm_manager_plus: ^5.0.0
 
-  # 📦 State & Storage
+  # State & Storage
   provider: ^6.1.2
   shared_preferences: ^2.2.3
 
-  # 🔊 Audio (for voice reminder later)
+  # Audio
   just_audio: ^0.9.36
 
 dev_dependencies:
