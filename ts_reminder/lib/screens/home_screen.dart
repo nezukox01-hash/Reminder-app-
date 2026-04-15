@@ -6,13 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/task_item.dart';
 import '../services/audio_service.dart';
+import '../services/daily_task_reset_service.dart'; // ✅ Added
+import '../services/midnight_alarm_service.dart';   // ✅ Added
 import '../utils/colors.dart';
 import '../widgets/assistant_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
 import 'daily_report_screen.dart';
 import 'reminder_screen.dart';
-import 'stats_screen.dart'; // ✅ Added StatsScreen import
+import 'stats_screen.dart';
 import 'tasks_screen.dart';
 import 'timer_screen.dart';
 
@@ -39,14 +41,22 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _initApp(); // ✅ Changed to use the new _initApp() method
+  }
+
+  // ✅ NEW: Fallback logic for handling day rollover and alarms
+  Future<void> _initApp() async {
+    await DailyTaskResetService.handleDayRollover();
+    await MidnightAlarmService.reschedule();
+
     _startWaveAnimation();
 
-    _loadTaskData().then((_) {
-      if (!_hasPlayedOnce) {
-        _hasPlayedOnce = true;
-        _playAssistantVoice();
-      }
-    });
+    await _loadTaskData();
+
+    if (!_hasPlayedOnce) {
+      _hasPlayedOnce = true;
+      _playAssistantVoice();
+    }
   }
 
   Future<void> _loadTaskData() async {
@@ -137,7 +147,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           } else if (index == 1) {
-            // ✅ Updated Stats screen navigation
             await Navigator.push(
               context,
               MaterialPageRoute(
