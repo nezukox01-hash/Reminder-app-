@@ -13,6 +13,11 @@ class DailyReportScreen extends StatefulWidget {
 }
 
 class _DailyReportScreenState extends State<DailyReportScreen> {
+  static const String tasksStorageKey = 'ts_tasks_v5';
+  static const String dailyTimerDateKey = 'daily_timer_date';
+  static const String dailyCompletedSessionsKey = 'daily_completed_focus_sessions';
+  static const String dailyStudySecondsKey = 'daily_study_seconds';
+
   int rating = 0;
   final TextEditingController noteController = TextEditingController();
 
@@ -32,7 +37,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTaskStats();
+    _loadAutoStats();
     _loadExistingReport();
   }
 
@@ -42,15 +47,16 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     super.dispose();
   }
 
-  Future<void> _loadTaskStats() async {
+  Future<void> _loadAutoStats() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getStringList('ts_tasks_v5') ?? [];
+
+    final taskData = prefs.getStringList(tasksStorageKey) ?? [];
 
     int completed = 0;
     int skipped = 0;
     int pending = 0;
 
-    for (final item in data) {
+    for (final item in taskData) {
       final parts = item.split('||');
 
       final isDone = parts.length > 3 && parts[3] == 'true';
@@ -65,16 +71,20 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       }
     }
 
+    final savedTimerDate = prefs.getString(dailyTimerDateKey) ?? '';
+    final int dailySessions =
+        savedTimerDate == todayDate ? (prefs.getInt(dailyCompletedSessionsKey) ?? 0) : 0;
+    final int dailyStudySeconds =
+        savedTimerDate == todayDate ? (prefs.getInt(dailyStudySecondsKey) ?? 0) : 0;
+
     if (!mounted) return;
 
     setState(() {
       completedTasks = completed;
       skippedTasks = skipped;
       pendingTasks = pending;
-
-      // 🔹 timer data later real connect korbo
-      focusSessions = 0;
-      studyMinutes = 0;
+      focusSessions = dailySessions;
+      studyMinutes = dailyStudySeconds ~/ 60;
     });
   }
 
@@ -85,11 +95,6 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     setState(() {
       rating = report.rating;
       noteController.text = report.note;
-      completedTasks = report.completedTasks;
-      skippedTasks = report.skippedTasks;
-      pendingTasks = report.pendingTasks;
-      focusSessions = report.focusSessions;
-      studyMinutes = report.studyMinutes;
     });
   }
 
@@ -167,19 +172,12 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-
               _buildStatsCard(),
-
               const SizedBox(height: 18),
-
               _buildRatingCard(),
-
               const SizedBox(height: 16),
-
               _buildNoteCard(),
-
               const SizedBox(height: 24),
-
               _buildSaveButton(),
             ],
           ),
