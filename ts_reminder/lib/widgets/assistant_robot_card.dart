@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 class AssistantRobotCard extends StatelessWidget {
   final double taskProgress; // 0.0 - 1.0
   final double studyProgress; // 0.0 - 1.0
-
   final String greeting;
   final String message;
+  final bool isSpeaking;
+  final List<double> waveValues;
 
   const AssistantRobotCard({
     super.key,
@@ -13,76 +14,130 @@ class AssistantRobotCard extends StatelessWidget {
     required this.studyProgress,
     required this.greeting,
     required this.message,
+    required this.isSpeaking,
+    required this.waveValues,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(30),
         gradient: const LinearGradient(
-          colors: [Color(0xFF1B3558), Color(0xFF0E223D)],
+          colors: [Color(0xFF16345A), Color(0xFF0D2442)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          /// Top row
           Row(
             children: const [
-              Icon(Icons.smart_toy_rounded, color: Colors.white, size: 28),
+              Icon(Icons.smart_toy_rounded, color: Colors.white, size: 30),
               SizedBox(width: 10),
               Text(
                 'Personal Assistant',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
 
-          // 👁️ Eyes Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _ProgressEye(
-                progress: taskProgress,
-                color: Colors.amber,
-                label: '${(taskProgress * 100).toInt()}%',
-                sub: 'Tasks',
-              ),
-              _ProgressEye(
-                progress: studyProgress,
-                color: Colors.green,
-                label: '${(studyProgress * 100).toInt()}%',
-                sub: 'Study',
-              ),
-            ],
-          ),
+          /// Robot face area
+          SizedBox(
+            height: 220,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned(
+                  left: 6,
+                  top: 0,
+                  child: _ProgressEye(
+                    progress: taskProgress,
+                    color: const Color(0xFFFFD54F),
+                    label: '${(taskProgress * 100).toInt()}%',
+                    sub: 'Tasks',
+                    size: 120,
+                  ),
+                ),
 
-          const SizedBox(height: 18),
+                Positioned(
+                  right: 6,
+                  top: 0,
+                  child: _ProgressEye(
+                    progress: studyProgress,
+                    color: const Color(0xFF7CFC00),
+                    label: '${(studyProgress * 100).toInt()}%',
+                    sub: 'Study',
+                    size: 120,
+                  ),
+                ),
 
-          Text(
-            greeting,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+                Positioned(
+                  top: 16,
+                  left: 110,
+                  right: 110,
+                  child: Column(
+                    children: [
+                      Text(
+                        greeting,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 15,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-          const SizedBox(height: 6),
+                /// ✅ GREEN MARK AREA = Voice wave
+                Positioned(
+                  bottom: 42,
+                  child: _CenterVoiceWave(
+                    isSpeaking: isSpeaking,
+                    waveValues: waveValues,
+                  ),
+                ),
 
-          Text(
-            message,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
+                /// ✅ RED MARK AREA = Smile
+                const Positioned(
+                  bottom: 0,
+                  child: SizedBox(
+                    width: 110,
+                    height: 34,
+                    child: CustomPaint(
+                      painter: _SmilePainter(),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -91,37 +146,60 @@ class AssistantRobotCard extends StatelessWidget {
   }
 }
 
-// ✅ Added _ProgressEye Widget here
 class _ProgressEye extends StatelessWidget {
   final double progress;
   final Color color;
   final String label;
   final String sub;
+  final double size;
 
   const _ProgressEye({
     required this.progress,
     required this.color,
     required this.label,
     required this.sub,
+    required this.size,
   });
 
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: progress),
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 900),
       builder: (context, value, _) {
-        return SizedBox(
-          height: 90,
-          width: 90,
+        return Container(
+          height: size,
+          width: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.35),
+                blurRadius: 24,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
           child: Stack(
             alignment: Alignment.center,
             children: [
-              CircularProgressIndicator(
-                value: value,
-                strokeWidth: 8,
-                backgroundColor: Colors.white10,
-                valueColor: AlwaysStoppedAnimation(color),
+              SizedBox(
+                height: size,
+                width: size,
+                child: CircularProgressIndicator(
+                  value: value,
+                  strokeWidth: 10,
+                  backgroundColor: Colors.white10,
+                  valueColor: AlwaysStoppedAnimation(color),
+                ),
+              ),
+              Container(
+                height: size - 24,
+                width: size - 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.18),
+                ),
               ),
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -130,22 +208,96 @@ class _ProgressEye extends StatelessWidget {
                     label,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     sub,
                     style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 10,
+                      color: Colors.white70,
+                      fontSize: 12,
                     ),
                   ),
                 ],
-              )
+              ),
             ],
           ),
         );
       },
     );
   }
+}
+
+class _CenterVoiceWave extends StatelessWidget {
+  final bool isSpeaking;
+  final List<double> waveValues;
+
+  const _CenterVoiceWave({
+    required this.isSpeaking,
+    required this.waveValues,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bars = waveValues.isEmpty
+        ? [10.0, 14.0, 11.0, 16.0, 12.0, 15.0, 10.0]
+        : waveValues;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: List.generate(bars.length, (index) {
+        final rawHeight = isSpeaking ? bars[index] : 8.0;
+        final height = rawHeight.clamp(6.0, 24.0).toDouble();
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: 8,
+          height: height,
+          decoration: BoxDecoration(
+            color: const Color(0xFF26E07F),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF26E07F).withOpacity(0.40),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _SmilePainter extends CustomPainter {
+  const _SmilePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black.withOpacity(0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path()
+      ..moveTo(size.width * 0.18, size.height * 0.30)
+      ..quadraticBezierTo(
+        size.width * 0.50,
+        size.height * 0.95,
+        size.width * 0.82,
+        size.height * 0.30,
+      );
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
