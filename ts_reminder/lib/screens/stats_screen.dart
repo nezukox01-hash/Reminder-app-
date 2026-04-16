@@ -81,12 +81,30 @@ class _StatsScreenState extends State<StatsScreen> {
     }
 
     final savedTimerDate = prefs.getString(dailyTimerDateKey) ?? '';
-    final int dailySessions = savedTimerDate == todayDate
+    int dailySessions = savedTimerDate == todayDate
         ? (prefs.getInt(dailyCompletedSessionsKey) ?? 0)
         : 0;
-    final int dailyStudySeconds = savedTimerDate == todayDate
+    int dailyStudySeconds = savedTimerDate == todayDate
         ? (prefs.getInt(dailyStudySecondsKey) ?? 0)
         : 0;
+
+    // ✅ NEW: Fallback logic checking existing report if live looks empty
+    final savedReport = await DailyReportService.getReportByDate(todayDate);
+
+    final bool liveLooksEmpty =
+        completed == 0 &&
+        skipped == 0 &&
+        pending == 0 &&
+        dailySessions == 0 &&
+        dailyStudySeconds == 0;
+
+    if (savedReport != null && liveLooksEmpty) {
+      completed = savedReport.completedTasks;
+      skipped = savedReport.skippedTasks;
+      pending = savedReport.pendingTasks;
+      dailySessions = savedReport.focusSessions;
+      dailyStudySeconds = savedReport.studyMinutes * 60;
+    }
 
     if (!mounted) return;
 
