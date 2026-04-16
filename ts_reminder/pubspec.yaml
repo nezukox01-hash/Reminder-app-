@@ -11,6 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Firebase & Google Sign-in (New)
+  firebase_core: 
+  firebase_auth: 
+  cloud_firestore: 
+  google_sign_in: 
+
   # Notifications
   flutter_local_notifications: ^17.2.1
   timezone: ^0.9.4
@@ -24,11 +30,13 @@ dependencies:
   # Audio
   just_audio: ^0.9.36
 
+  # UI / Charts
+  fl_chart: ^0.68.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  fl_chart: ^0.68.0
   
 flutter:
   uses-material-design: true
