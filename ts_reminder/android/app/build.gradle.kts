@@ -3,7 +3,7 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
-    // 👇 Firebase Google Services Plugin যোগ করা হলো
+    // 👇 Firebase Google Services Plugin
     id("com.google.gms.google-services")
 }
 
@@ -54,7 +54,7 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
-    // 👇 Firebase Dependencies যোগ করা হলো
-    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    // 👇 Firebase Dependencies (Updated to 34.12.0)
+    implementation(platform("com.google.firebase:firebase-bom:34.12.0"))
     implementation("com.google.firebase:firebase-analytics")
 }
