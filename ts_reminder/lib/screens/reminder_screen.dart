@@ -16,6 +16,7 @@ class ReminderTaskItem {
   final String reminderTime;
   final int focusMinutes;
   final int priority;
+  final String taskDate; // ✅ Added field
 
   ReminderTaskItem({
     required this.id,
@@ -26,6 +27,7 @@ class ReminderTaskItem {
     required this.reminderTime,
     required this.focusMinutes,
     required this.priority,
+    required this.taskDate, // ✅ Added to constructor
   });
 
   ReminderTaskItem copyWith({
@@ -37,6 +39,7 @@ class ReminderTaskItem {
     String? reminderTime,
     int? focusMinutes,
     int? priority,
+    String? taskDate, // ✅ Added to copyWith
   }) {
     return ReminderTaskItem(
       id: id ?? this.id,
@@ -47,6 +50,7 @@ class ReminderTaskItem {
       reminderTime: reminderTime ?? this.reminderTime,
       focusMinutes: focusMinutes ?? this.focusMinutes,
       priority: priority ?? this.priority,
+      taskDate: taskDate ?? this.taskDate, // ✅ Added return mapping
     );
   }
 
@@ -61,6 +65,7 @@ class ReminderTaskItem {
       reminderTime: parts.length > 5 ? parts[5] : '',
       focusMinutes: parts.length > 6 ? int.tryParse(parts[6]) ?? 0 : 0,
       priority: parts.length > 7 ? int.tryParse(parts[7]) ?? 2 : 2,
+      taskDate: parts.length > 8 ? parts[8] : '', // ✅ Added with fallback
     );
   }
 
@@ -74,6 +79,7 @@ class ReminderTaskItem {
       reminderTime,
       focusMinutes.toString(),
       priority.toString(),
+      taskDate, // ✅ Added to string output
     ].join('||');
   }
 }
@@ -93,8 +99,14 @@ class _ReminderScreenState extends State<ReminderScreen> {
   String _lastSnapshot = '';
   OverlayEntry? _magicFiveEntry;
   
-  // ✅ NEW: Flag to prevent repeated post-load popups
+  // ✅ Flag to prevent repeated post-load popups
   bool _hasShownAllDonePopup = false; 
+
+  // ✅ NEW: todayDate getter
+  String get todayDate { 
+    final now = DateTime.now(); 
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}'; 
+  }
 
   @override
   void initState() {
@@ -113,7 +125,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
   }
 
   Future<void> _loadTasks({bool silentIfUnchanged = false}) async {
-    // ✅ Check day rollover before loading tasks
+    // Check day rollover before loading tasks
     await DailyTaskResetService.handleDayRollover();
 
     final prefs = await SharedPreferences.getInstance();
@@ -127,13 +139,20 @@ class _ReminderScreenState extends State<ReminderScreen> {
       ..clear()
       ..addAll(data.map(ReminderTaskItem.fromStorage));
 
+    // ✅ NEW: old task data fallback fix
+    for (int i = 0; i < _allTasks.length; i++) { 
+      if (_allTasks[i].taskDate.isEmpty) { 
+        _allTasks[i] = _allTasks[i].copyWith(taskDate: todayDate); 
+      } 
+    }
+
     _sortTasks();
 
     if (mounted) {
       setState(() {});
     }
     
-    // ✅ Check if all tasks are completed immediately after loading
+    // Check if all tasks are completed immediately after loading
     await _checkAndShowAllDonePopup();
   }
 
@@ -173,8 +192,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
     });
   }
 
-  List<ReminderTaskItem> get _reminderTasks =>
-      _allTasks.where((e) => e.reminderTime.isNotEmpty).toList();
+  // ✅ UPDATED: reminder list filter change
+  List<ReminderTaskItem> get _reminderTasks => _allTasks.where((e) { 
+    final date = e.taskDate.isEmpty ? todayDate : e.taskDate; 
+    return e.reminderTime.isNotEmpty && date == todayDate; 
+  }).toList();
 
   int get _pendingCount =>
       _reminderTasks.where((e) => !e.isDone && !e.isSkipped).length;
@@ -222,7 +244,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
-  // ✅ NEW: Post-Load Safety Popup Logic Check for Reminders
+  // Post-Load Safety Popup Logic Check for Reminders
   Future<void> _checkAndShowAllDonePopup() async {
     final hasTasks = _allTasks.isNotEmpty;
     final hasActiveTasks = _allTasks.any((e) => !e.isDone && !e.isSkipped);
@@ -266,7 +288,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     });
   }
 
-  // ✅ UPDATED: Call Popup Logic Check on Toggle/Skip
+  // Call Popup Logic Check on Toggle/Skip
   Future<void> _checkAllCompletedToggle(int previousPending, int currentPending, int total) async {
     if (previousPending > 0 && currentPending == 0 && total > 0) {
       await AudioService.playAllTasksCompleted();
@@ -321,7 +343,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final int currentPendingCount = _allTasks.where((e) => !e.isDone && !e.isSkipped).length;
     final int totalTasksCount = _allTasks.length;
 
-    // ✅ Check if it was the last task
+    // Check if it was the last task
     await _checkAllCompletedToggle(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
@@ -451,7 +473,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
       await AudioService.playTaskCompleted();
     }
 
-    // ✅ Check if all tasks are done
+    // Check if all tasks are done
     await _checkAllCompletedToggle(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
