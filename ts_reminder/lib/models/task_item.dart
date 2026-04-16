@@ -6,7 +6,8 @@ class TaskItem {
   final bool isSkipped;
   final String reminderTime;
   final int focusMinutes;
-  final int priority; // 1 = low, 2 = medium, 3 = high
+  final int priority;
+  final String taskDate;
 
   TaskItem({
     required this.id,
@@ -17,6 +18,7 @@ class TaskItem {
     required this.reminderTime,
     required this.focusMinutes,
     required this.priority,
+    required this.taskDate,
   });
 
   TaskItem copyWith({
@@ -28,6 +30,7 @@ class TaskItem {
     String? reminderTime,
     int? focusMinutes,
     int? priority,
+    String? taskDate,
   }) {
     return TaskItem(
       id: id ?? this.id,
@@ -38,6 +41,7 @@ class TaskItem {
       reminderTime: reminderTime ?? this.reminderTime,
       focusMinutes: focusMinutes ?? this.focusMinutes,
       priority: priority ?? this.priority,
+      taskDate: taskDate ?? this.taskDate,
     );
   }
 
@@ -51,11 +55,13 @@ class TaskItem {
       reminderTime,
       focusMinutes.toString(),
       priority.toString(),
+      taskDate,
     ].join('||');
   }
 
   factory TaskItem.fromStorage(String value) {
     final parts = value.split('||');
+
     return TaskItem(
       id: parts.isNotEmpty ? parts[0] : '',
       title: parts.length > 1 ? parts[1] : '',
@@ -65,6 +71,7 @@ class TaskItem {
       reminderTime: parts.length > 5 ? parts[5] : '',
       focusMinutes: parts.length > 6 ? int.tryParse(parts[6]) ?? 0 : 0,
       priority: parts.length > 7 ? int.tryParse(parts[7]) ?? 2 : 2,
+      taskDate: parts.length > 8 ? parts[8] : '',
     );
   }
 }
