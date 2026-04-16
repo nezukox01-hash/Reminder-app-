@@ -1,52 +1,46 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart'; // For debugPrint
 
 class AuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   
-  // 👉 Updated constructor for the latest version
-  static final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email'],
-  );
+  // Standard constructor for stable versions
+  static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // 👉 Get current logged-in user
   static User? get currentUser => _auth.currentUser;
 
-  // 👉 Handle Google Sign-In
   static Future<User?> signInWithGoogle() async {
     try {
-      // 1. Trigger the Google Authentication flow
+      // 1. Start the flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
       if (googleUser == null) return null;
 
-      // 2. Obtain the auth details
+      // 2. Get auth details
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-      // 3. Create a new credential for Firebase
-      // accessToken and idToken are retrieved correctly here
+      // 3. Create credential
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // 4. Sign in to Firebase
+      // 4. Firebase Sign-in
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
-      
       return userCredential.user;
+      
     } catch (e) {
-      print("Error during Google Sign-In: $e");
+      debugPrint("Google Sign-In Error: $e");
       return null;
     }
   }
 
-  // 👉 Handle Sign-Out
   static Future<void> signOut() async {
     try {
       await _googleSignIn.signOut();
       await _auth.signOut();
     } catch (e) {
-      print("Error during Sign-Out: $e");
+      debugPrint("Sign-Out Error: $e");
     }
   }
 }
