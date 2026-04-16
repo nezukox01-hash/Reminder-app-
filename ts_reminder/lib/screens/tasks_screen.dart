@@ -6,6 +6,8 @@ import '../models/task_item.dart';
 import '../services/audio_service.dart';
 import '../services/task_reminder_service.dart';
 import '../services/daily_task_reset_service.dart';
+import '../services/auth_service.dart'; // ✅ Added
+import '../services/cloud_sync_service.dart'; // ✅ Added
 import '../utils/colors.dart';
 import '../widgets/extra/magic_five_bubble.dart';
 import '../widgets/extra/skip_motivation_dialog.dart';
@@ -24,10 +26,8 @@ class _TasksScreenState extends State<TasksScreen> {
   SharedPreferences? _prefs;
   OverlayEntry? _magicFiveEntry;
   
-  // ✅ Flag to prevent repeated post-load popups
   bool _hasShownAllDonePopup = false; 
 
-  // ✅ NEW: Helper to get today's date
   String get _todayDate {
     final now = DateTime.now();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -65,13 +65,22 @@ class _TasksScreenState extends State<TasksScreen> {
     await _checkAndShowAllDonePopup();
   }
 
+  // ✅ Updated: Auto-sync to Cloud whenever data is saved locally
   Future<void> _saveTasks() async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
+    
+    // Save locally
     await prefs.setStringList(
       storageKey,
       _tasks.map((e) => e.toStorage()).toList(),
     );
+
+    // 👉 Trigger Cloud Upload if logged in
+    final user = AuthService.currentUser;
+    if (user != null) {
+      CloudSyncService.uploadData(user.uid);
+    }
   }
 
   void _sortTasks() {
@@ -311,7 +320,7 @@ class _TasksScreenState extends State<TasksScreen> {
                         reminderTime: reminderString,
                         focusMinutes: focusMinutes,
                         priority: selectedPriority,
-                        taskDate: _todayDate, // ✅ NEW: Task binds to today's date
+                        taskDate: _todayDate,
                       );
                       _tasks.add(savedTask);
                     } else {
@@ -483,6 +492,10 @@ class _TasksScreenState extends State<TasksScreen> {
       if (result == true) {
         await DailyTaskResetService.finalizeTodayAndClearTasks();
         await _loadTasks();
+        
+        // 👉 Sync to cloud after finalizing stats
+        final user = AuthService.currentUser;
+        if (user != null) CloudSyncService.uploadData(user.uid);
       }
     });
   }
@@ -516,6 +529,10 @@ class _TasksScreenState extends State<TasksScreen> {
       if (confirm == true) {
         await DailyTaskResetService.finalizeTodayAndClearTasks();
         await _loadTasks();
+        
+        // 👉 Sync to cloud after finalizing stats
+        final user = AuthService.currentUser;
+        if (user != null) CloudSyncService.uploadData(user.uid);
       }
     }
   }
