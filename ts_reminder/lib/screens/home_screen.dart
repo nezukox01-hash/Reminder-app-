@@ -9,7 +9,7 @@ import '../services/audio_service.dart';
 import '../services/daily_task_reset_service.dart';
 import '../services/midnight_alarm_service.dart';
 import '../utils/colors.dart';
-import '../widgets/assistant_robot_card.dart';
+import '../widgets/assistant_robot_card.dart'; // ✅ নতুন কার্ডের ইমপোর্ট
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
 import 'daily_report_screen.dart';
@@ -167,6 +167,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final greeting = AudioService.getGreetingByTime();
+    
+    // assistantText আপাতত নিচে ব্যবহার হচ্ছে না কারণ নতুন ডিজাইনে
+    // আমরা সরাসরি Sir এবং completed tasks দেখাচ্ছি। 
+    // তবে চাইলে ফিউচারে ব্যবহার করতে পারেন।
     final assistantText = AudioService.getAssistantMessage(
       unfinishedTasks,
       totalTasks,
@@ -220,13 +224,17 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildTopBar(),
               const SizedBox(height: 20),
 
+              // ✅ NEW: Premium Assistant Robot Card
               AssistantRobotCard(
-                taskProgress: _taskProgress(),
-                studyProgress: _studyProgress(),
-                greeting: greeting,
-                message: assistantText,
-                isSpeaking: isAssistantSpeaking,
-                waveValues: waveValues,
+                data: AssistantRobotCardData(
+                  taskPercentage: _taskProgress(),
+                  completedTasks: totalTasks - unfinishedTasks,
+                  totalTasks: totalTasks,
+                  completedTimeMinutes: dailyStudyMinutes,
+                  totalTimeMinutes: 120, // আপনার টার্গেট স্টাডি টাইম
+                  greeting: greeting,
+                  subordinateName: "Sir",
+                ),
               ),
 
               const SizedBox(height: 18),
