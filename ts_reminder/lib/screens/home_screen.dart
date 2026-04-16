@@ -6,10 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/task_item.dart';
 import '../services/audio_service.dart';
-import '../services/daily_task_reset_service.dart'; // ✅ Added
-import '../services/midnight_alarm_service.dart';   // ✅ Added
+import '../services/daily_task_reset_service.dart';
+import '../services/midnight_alarm_service.dart';
 import '../utils/colors.dart';
-import '../widgets/assistant_robot_card.dart'; // ✅ REPLACED import
+import '../widgets/assistant_robot_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
 import 'daily_report_screen.dart';
@@ -26,9 +26,18 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String tasksKey = 'ts_tasks_v5';
+  static const String dailyTimerDateKey = 'daily_timer_date';
+  static const String dailyCompletedSessionsKey =
+      'daily_completed_focus_sessions';
+  static const String dailyStudySecondsKey = 'daily_study_seconds';
+
   int unfinishedTasks = 0;
   int totalTasks = 0;
   int highPriorityPendingCount = 0;
+
+  int dailyStudyMinutes = 0;
+  int dailyFocusSessions = 0;
 
   bool isAssistantSpeaking = true;
   bool _hasPlayedOnce = false;
@@ -44,57 +53,71 @@ class _HomeScreenState extends State<HomeScreen> {
     _initApp();
   }
 
-  // Fallback logic for handling day rollover and alarms
+  String get todayDate {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _initApp() async {
     await DailyTaskResetService.handleDayRollover();
     await MidnightAlarmService.reschedule();
 
     _startWaveAnimation();
-
     await _loadTaskData();
 
     if (!_hasPlayedOnce) {
       _hasPlayedOnce = true;
-      _playAssistantVoice();
+      await _playAssistantVoice();
     }
   }
 
   Future<void> _loadTaskData() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getStringList('ts_tasks_v5') ?? [];
+    final data = prefs.getStringList(tasksKey) ?? [];
 
     final tasks = data.map((e) => TaskItem.fromStorage(e)).toList();
 
-    final int pendingCount =
-        tasks.where((e) => !e.isDone && !e.isSkipped).length;
+    final todayTasks = tasks.where((task) {
+      final date = task.taskDate.isEmpty ? todayDate : task.taskDate;
+      return date == todayDate;
+    }).toList();
 
-    final int highPriorityCount = tasks
+    final int pendingCount =
+        todayTasks.where((e) => !e.isDone && !e.isSkipped).length;
+
+    final int highPriorityCount = todayTasks
         .where((e) => !e.isDone && !e.isSkipped && e.priority == 3)
         .length;
+
+    final savedTimerDate = prefs.getString(dailyTimerDateKey) ?? '';
+    final int studySeconds = savedTimerDate == todayDate
+        ? (prefs.getInt(dailyStudySecondsKey) ?? 0)
+        : 0;
+    final int sessions = savedTimerDate == todayDate
+        ? (prefs.getInt(dailyCompletedSessionsKey) ?? 0)
+        : 0;
 
     if (!mounted) return;
 
     setState(() {
-      totalTasks = tasks.length;
+      totalTasks = todayTasks.length;
       unfinishedTasks = pendingCount;
       highPriorityPendingCount = highPriorityCount;
+      dailyStudyMinutes = studySeconds ~/ 60;
+      dailyFocusSessions = sessions;
     });
   }
 
-  // ✅ NEW: Task Progress Calculation
   double _taskProgress() {
     if (totalTasks == 0) return 0.0;
-    final done = totalTasks - unfinishedTasks;
-    return done / totalTasks;
+
+    final doneOrSkipped = totalTasks - unfinishedTasks;
+    return (doneOrSkipped / totalTasks).clamp(0.0, 1.0);
   }
 
-  // ✅ NEW: Study Progress Calculation
   double _studyProgress() {
-    // example: 120 min target
-    const target = 120;
-    // তুমি চাইলে prefs থেকে নিতে পারো
-    int studiedMinutes = 0;
-    return (studiedMinutes / target).clamp(0, 1).toDouble();
+    const int targetMinutes = 120;
+    return (dailyStudyMinutes / targetMinutes).clamp(0.0, 1.0);
   }
 
   Future<void> _playAssistantVoice() async {
@@ -196,15 +219,16 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _buildTopBar(),
               const SizedBox(height: 20),
-              
-              // ✅ REPLACED: Added the new AssistantRobotCard
+
               AssistantRobotCard(
                 taskProgress: _taskProgress(),
                 studyProgress: _studyProgress(),
                 greeting: greeting,
                 message: assistantText,
+                isSpeaking: isAssistantSpeaking,
+                waveValues: waveValues,
               ),
-              
+
               const SizedBox(height: 18),
               _buildQuickActions(),
               const SizedBox(height: 18),
@@ -253,7 +277,17 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickActionButton(
             icon: Icons.play_arrow_rounded,
             label: 'Start Focus',
-            onTap: () {},
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TimerScreen(),
+                ),
+              );
+
+              if (!mounted) return;
+              await _loadTaskData();
+            },
           ),
         ),
         const SizedBox(width: 12),
@@ -309,13 +343,16 @@ class _HomeScreenState extends State<HomeScreen> {
           title: 'Timer',
           icon: Icons.timer_rounded,
           color: AppColors.timer,
-          onTap: () {
-            Navigator.push(
+          onTap: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => const TimerScreen(),
               ),
             );
+
+            if (!mounted) return;
+            await _loadTaskData();
           },
         ),
         HomeCard(
