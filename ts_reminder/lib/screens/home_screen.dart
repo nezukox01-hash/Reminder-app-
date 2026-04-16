@@ -9,7 +9,7 @@ import '../services/audio_service.dart';
 import '../services/daily_task_reset_service.dart';
 import '../services/midnight_alarm_service.dart';
 import '../utils/colors.dart';
-import '../widgets/assistant_robot_card.dart'; 
+import '../widgets/assistant_robot_card.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
 import 'daily_report_screen.dart';
@@ -110,7 +110,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   double _taskProgress() {
     if (totalTasks == 0) return 0.0;
-
     final doneOrSkipped = totalTasks - unfinishedTasks;
     return (doneOrSkipped / totalTasks).clamp(0.0, 1.0);
   }
@@ -181,25 +180,19 @@ class _HomeScreenState extends State<HomeScreen> {
           if (index == 0) {
             await Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const TimerScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const TimerScreen()),
             );
           } else if (index == 1) {
             await Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const StatsScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const StatsScreen()),
             );
           } else if (index == 2) {
             return;
           } else if (index == 3) {
             await Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const DailyReportScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const DailyReportScreen()),
             );
           } else if (index == 4) {
             // Notes screen later
@@ -220,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildTopBar(),
               const SizedBox(height: 20),
 
-              // ✅ REPLACED: isSpeaking এবং waveValues অ্যাড করা হয়েছে
+              // ✅ Correct AssistantRobotCard Call
               AssistantRobotCard(
                 taskProgress: _taskProgress(),
                 studyProgress: _studyProgress(),
@@ -281,11 +274,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const TimerScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const TimerScreen()),
               );
-
               if (!mounted) return;
               await _loadTaskData();
             },
@@ -299,11 +289,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const TasksScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const TasksScreen()),
               );
-
               if (!mounted) return;
               await _loadTaskData();
             },
@@ -317,11 +304,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const ReminderScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const ReminderScreen()),
               );
-
               if (!mounted) return;
               await _loadTaskData();
             },
@@ -347,11 +331,8 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const TimerScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const TimerScreen()),
             );
-
             if (!mounted) return;
             await _loadTaskData();
           },
@@ -363,11 +344,8 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const ReminderScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const ReminderScreen()),
             );
-
             if (!mounted) return;
             await _loadTaskData();
           },
@@ -379,11 +357,8 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const TasksScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const TasksScreen()),
             );
-
             if (!mounted) return;
             await _loadTaskData();
           },
@@ -421,6 +396,7 @@ class _QuickActionButton extends StatelessWidget {
           color: AppColors.surface,
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
@@ -432,3 +408,14 @@ class _QuickActionButton extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: const TextStyle(
+                color: AppColors.primaryText,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
