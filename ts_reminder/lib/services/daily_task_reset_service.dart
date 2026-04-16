@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/daily_report_model.dart';
+import '../models/task_item.dart'; // ✅ Added TaskItem import
 import 'daily_report_service.dart';
 
 class DailyTaskResetService {
@@ -35,10 +36,13 @@ class DailyTaskResetService {
     await prefs.setString(logicalTaskDateKey, date);
   }
 
+  // ✅ Updated to use new task helpers
   static Future<int> getActiveTaskCount() async {
     final prefs = await SharedPreferences.getInstance();
-    final tasks = prefs.getStringList(tasksStorageKey) ?? [];
-    return _countPending(tasks);
+    final rawTasks = prefs.getStringList(tasksStorageKey) ?? [];
+    final allTasks = _readTasksFromPrefs(rawTasks);
+    final todayTasks = _tasksForDate(allTasks, todayDate());
+    return _pendingFromTasks(todayTasks);
   }
 
   static Future<bool> hasNoActiveTasks() async {
@@ -46,40 +50,28 @@ class DailyTaskResetService {
     return count == 0;
   }
 
-  static Future<void> clearAllTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(tasksStorageKey, []);
+  // ✅ NEW HELPERS FOR TASK FILTERING
+  static List<TaskItem> _readTasksFromPrefs(List<String> rawTasks) {
+    return rawTasks.map(TaskItem.fromStorage).toList();
   }
 
-  static int _countCompleted(List<String> rawTasks) {
-    int count = 0;
-    for (final item in rawTasks) {
-      final parts = item.split('||');
-      final isDone = parts.length > 3 && parts[3] == 'true';
-      if (isDone) count++;
-    }
-    return count;
+  static List<TaskItem> _tasksForDate(List<TaskItem> tasks, String date) {
+    return tasks.where((t) {
+      final taskDate = t.taskDate.isEmpty ? date : t.taskDate;
+      return taskDate == date;
+    }).toList();
   }
 
-  static int _countSkipped(List<String> rawTasks) {
-    int count = 0;
-    for (final item in rawTasks) {
-      final parts = item.split('||');
-      final isSkipped = parts.length > 4 && parts[4] == 'true';
-      if (isSkipped) count++;
-    }
-    return count;
+  static int _completedFromTasks(List<TaskItem> tasks) {
+    return tasks.where((t) => t.isDone).length;
   }
 
-  static int _countPending(List<String> rawTasks) {
-    int count = 0;
-    for (final item in rawTasks) {
-      final parts = item.split('||');
-      final isDone = parts.length > 3 && parts[3] == 'true';
-      final isSkipped = parts.length > 4 && parts[4] == 'true';
-      if (!isDone && !isSkipped) count++;
-    }
-    return count;
+  static int _skippedFromTasks(List<TaskItem> tasks) {
+    return tasks.where((t) => t.isSkipped).length;
+  }
+
+  static int _pendingFromTasks(List<TaskItem> tasks) {
+    return tasks.where((t) => !t.isDone && !t.isSkipped).length;
   }
 
   static Future<({int focusSessions, int studyMinutes})> _readDailyTimerStatsForDate(
@@ -148,11 +140,14 @@ class DailyTaskResetService {
 
     if (lastProcessed == today) return;
 
+    // ✅ REPLACED with specific date counting
     final rawTasks = prefs.getStringList(tasksStorageKey) ?? [];
-
-    final completed = _countCompleted(rawTasks);
-    final skipped = _countSkipped(rawTasks);
-    final pending = _countPending(rawTasks);
+    final allTasks = _readTasksFromPrefs(rawTasks);
+    final previousDayTasks = _tasksForDate(allTasks, lastProcessed);
+    
+    final completed = _completedFromTasks(previousDayTasks);
+    final skipped = _skippedFromTasks(previousDayTasks);
+    final pending = _pendingFromTasks(previousDayTasks);
 
     final timerStats = await _readDailyTimerStatsForDate(lastProcessed);
 
@@ -165,7 +160,17 @@ class DailyTaskResetService {
       studyMinutes: timerStats.studyMinutes,
     );
 
-    await clearAllTasks();
+    // ✅ REPLACED: Specific date task removal instead of clearing everything
+    final remainingTasks = allTasks.where((t) { 
+      final taskDate = t.taskDate.isEmpty ? today : t.taskDate; 
+      return taskDate != lastProcessed; 
+    }).toList(); 
+    
+    await prefs.setStringList(
+      tasksStorageKey, 
+      remainingTasks.map((e) => e.toStorage()).toList(), 
+    );
+
     await _resetDailyTimerStatsToToday();
 
     await prefs.setString(lastProcessedDateKey, today);
@@ -179,11 +184,14 @@ class DailyTaskResetService {
     final prefs = await SharedPreferences.getInstance();
     final today = todayDate();
 
+    // ✅ REPLACED with specific date counting
     final rawTasks = prefs.getStringList(tasksStorageKey) ?? [];
-
-    final completed = _countCompleted(rawTasks);
-    final skipped = _countSkipped(rawTasks);
-    final pending = _countPending(rawTasks);
+    final allTasks = _readTasksFromPrefs(rawTasks);
+    final todayTasks = _tasksForDate(allTasks, today);
+    
+    final completed = _completedFromTasks(todayTasks);
+    final skipped = _skippedFromTasks(todayTasks);
+    final pending = _pendingFromTasks(todayTasks);
 
     final timerStats = await _readDailyTimerStatsForDate(today);
 
@@ -196,7 +204,16 @@ class DailyTaskResetService {
       studyMinutes: timerStats.studyMinutes,
     );
 
-    await clearAllTasks();
+    // ✅ REPLACED: Specific date task removal instead of clearing everything
+    final remainingTasks = allTasks.where((t) { 
+      final taskDate = t.taskDate.isEmpty ? today : t.taskDate; 
+      return taskDate != today; 
+    }).toList(); 
+    
+    await prefs.setStringList(
+      tasksStorageKey, 
+      remainingTasks.map((e) => e.toStorage()).toList(), 
+    );
 
     await prefs.setString(lastProcessedDateKey, today);
 
