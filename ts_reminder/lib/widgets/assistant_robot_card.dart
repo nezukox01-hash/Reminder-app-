@@ -40,7 +40,6 @@ class AssistantRobotCard extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          /// Top row
           Row(
             children: const [
               Icon(Icons.smart_toy_rounded, color: Colors.white, size: 30),
@@ -55,89 +54,112 @@ class AssistantRobotCard extends StatelessWidget {
               ),
             ],
           ),
-
-          const SizedBox(height: 22),
-
-          /// Robot face area
+          const SizedBox(height: 18),
           SizedBox(
-            height: 220,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Positioned(
-                  left: 6,
-                  top: 0,
-                  child: _ProgressEye(
-                    progress: taskProgress,
-                    color: const Color(0xFFFFD54F),
-                    label: '${(taskProgress * 100).toInt()}%',
-                    sub: 'Tasks',
-                    size: 120,
-                  ),
-                ),
+            height: 235,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double w = constraints.maxWidth;
 
-                Positioned(
-                  right: 6,
-                  top: 0,
-                  child: _ProgressEye(
-                    progress: studyProgress,
-                    color: const Color(0xFF7CFC00),
-                    label: '${(studyProgress * 100).toInt()}%',
-                    sub: 'Study',
-                    size: 120,
-                  ),
-                ),
+                final double eyeSize = w < 340 ? 88 : 104;
+                final double rawCenterWidth = w - (eyeSize * 2) - 44;
+                final double centerWidth =
+                    rawCenterWidth < 130 ? 130 : rawCenterWidth;
 
-                Positioned(
-                  top: 16,
-                  left: 110,
-                  right: 110,
-                  child: Column(
-                    children: [
-                      Text(
-                        greeting,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                        ),
+                final double greetingFontSize =
+                    centerWidth < 170 ? 20 : 28;
+                final double messageFontSize =
+                    centerWidth < 170 ? 12 : 15;
+
+                return Stack(
+                  children: [
+                    Positioned(
+                      left: 6,
+                      top: 8,
+                      child: _ProgressEye(
+                        progress: taskProgress,
+                        color: const Color(0xFFFFD54F),
+                        label: '${(taskProgress * 100).toInt()}%',
+                        sub: 'Tasks',
+                        size: eyeSize,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        message,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 15,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                /// ✅ GREEN MARK AREA = Voice wave
-                Positioned(
-                  bottom: 42,
-                  child: _CenterVoiceWave(
-                    isSpeaking: isSpeaking,
-                    waveValues: waveValues,
-                  ),
-                ),
-
-                /// ✅ RED MARK AREA = Smile
-                const Positioned(
-                  bottom: 0,
-                  child: SizedBox(
-                    width: 110,
-                    height: 34,
-                    child: CustomPaint(
-                      painter: _SmilePainter(),
                     ),
-                  ),
-                ),
-              ],
+                    Positioned(
+                      right: 6,
+                      top: 8,
+                      child: _ProgressEye(
+                        progress: studyProgress,
+                        color: const Color(0xFF7CFC00),
+                        label: '${(studyProgress * 100).toInt()}%',
+                        sub: 'Study',
+                        size: eyeSize,
+                      ),
+                    ),
+                    Positioned(
+                      top: 30,
+                      left: (w - centerWidth) / 2,
+                      width: centerWidth,
+                      child: Column(
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              greeting,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: greetingFontSize,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            message,
+                            textAlign: TextAlign.center,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: messageFontSize,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ✅ GREEN MARK AREA = Voice wave
+                    Positioned(
+                      bottom: 42,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: _CenterVoiceWave(
+                          isSpeaking: isSpeaking,
+                          waveValues: waveValues,
+                        ),
+                      ),
+                    ),
+
+                    // ✅ RED MARK AREA = Smile
+                    const Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: SizedBox(
+                          width: 96,
+                          height: 34,
+                          child: CustomPaint(
+                            painter: _SmilePainter(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -174,7 +196,7 @@ class _ProgressEye extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.35),
+                color: color.withOpacity(0.30),
                 blurRadius: 24,
                 spreadRadius: 2,
               ),
@@ -188,14 +210,14 @@ class _ProgressEye extends StatelessWidget {
                 width: size,
                 child: CircularProgressIndicator(
                   value: value,
-                  strokeWidth: 10,
+                  strokeWidth: 9,
                   backgroundColor: Colors.white10,
                   valueColor: AlwaysStoppedAnimation(color),
                 ),
               ),
               Container(
-                height: size - 24,
-                width: size - 24,
+                height: size - 20,
+                width: size - 20,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.black.withOpacity(0.18),
@@ -209,7 +231,7 @@ class _ProgressEye extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
-                      fontSize: 20,
+                      fontSize: 18,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -217,7 +239,7 @@ class _ProgressEye extends StatelessWidget {
                     sub,
                     style: const TextStyle(
                       color: Colors.white70,
-                      fontSize: 12,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -287,12 +309,12 @@ class _SmilePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final path = Path()
-      ..moveTo(size.width * 0.18, size.height * 0.30)
+      ..moveTo(size.width * 0.18, size.height * 0.28)
       ..quadraticBezierTo(
         size.width * 0.50,
         size.height * 0.95,
         size.width * 0.82,
-        size.height * 0.30,
+        size.height * 0.28,
       );
 
     canvas.drawPath(path, paint);
