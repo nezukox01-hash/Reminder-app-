@@ -220,12 +220,14 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildTopBar(),
               const SizedBox(height: 20),
 
-              // ✅ REPLACED: Corrected Parameters
+              // ✅ REPLACED: isSpeaking এবং waveValues অ্যাড করা হয়েছে
               AssistantRobotCard(
                 taskProgress: _taskProgress(),
                 studyProgress: _studyProgress(),
                 greeting: greeting,
                 message: assistantText,
+                isSpeaking: isAssistantSpeaking,
+                waveValues: waveValues,
               ),
 
               const SizedBox(height: 18),
@@ -430,14 +432,3 @@ class _QuickActionButton extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: AppColors.primaryText,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
