@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fl_chart/fl_chart.dart'; // ✅ Added fl_chart import
 
 import '../models/daily_report_model.dart';
 import '../services/daily_report_service.dart';
@@ -88,7 +89,6 @@ class _StatsScreenState extends State<StatsScreen> {
         ? (prefs.getInt(dailyStudySecondsKey) ?? 0)
         : 0;
 
-    // ✅ NEW: Fallback logic checking existing report if live looks empty
     final savedReport = await DailyReportService.getReportByDate(todayDate);
 
     final bool liveLooksEmpty =
@@ -166,11 +166,25 @@ class _StatsScreenState extends State<StatsScreen> {
     await _loadEverything();
   }
 
+  // ✅ Automatically calculate last 7 days study minutes from display logs
+  List<double> get _weeklyChartData {
+    List<double> data = List.filled(7, 0.0);
+    for (int i = 0; i < 7 && i < _displayLogs.length; i++) {
+      // Index 0 of _displayLogs is today, goes at index 6 (far right) of chart
+      data[6 - i] = _displayLogs[i].studyMinutes.toDouble();
+    }
+    return data;
+  }
+
   @override
   Widget build(BuildContext context) {
     final todayTasksDone = completedTasks + skippedTasks;
     final totalTodayTasks = completedTasks + skippedTasks + pendingTasks;
     final savedReportsCount = _savedReports.length;
+
+    // Calculate progress for the animated ring
+    final double todayProgress =
+        totalTodayTasks == 0 ? 0.0 : todayTasksDone / totalTodayTasks;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -199,28 +213,119 @@ class _StatsScreenState extends State<StatsScreen> {
                           ),
                           const Expanded(
                             child: Text(
-                              'Stats',
+                              'Stats & Progress',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 30,
+                                fontSize: 28,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 24),
+                      
+                      // 🔵 Premium Animated Ring
+                      Center(
+                        child: AnimatedProgressRing(progress: todayProgress),
+                      ),
+                      const SizedBox(height: 10),
+                      const Center(
+                        child: Text(
+                          "Today's Task Completion",
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+
+                      // 📊 Premium Weekly Bar Chart
+                      _buildWeeklyChartCard(_weeklyChartData),
+                      const SizedBox(height: 20),
+
+                      // 📝 Overview Card
                       _buildTodayOverviewCard(
                         todayTasksDone: todayTasksDone,
                         totalTodayTasks: totalTodayTasks,
                         savedReportsCount: savedReportsCount,
                       ),
                       const SizedBox(height: 20),
+
+                      // 📋 Daily Logs
                       _buildDailyLogsCard(),
                     ],
                   ),
                 ),
         ),
+      ),
+    );
+  }
+
+  // ✅ Premium Glow Chart Card
+  Widget _buildWeeklyChartCard(List<double> data) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      height: 240,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          colors: [AppColors.surface2, AppColors.surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4D88F8).withOpacity(0.2), // Premium glow
+            blurRadius: 20,
+            spreadRadius: 2,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.08),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Weekly Study Time (Min)',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: BarChart(
+              BarChartData(
+                borderData: FlBorderData(show: false),
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(show: false), // Clean look
+                barGroups: List.generate(data.length, (i) {
+                  return BarChartGroupData(
+                    x: i,
+                    barRods: [
+                      BarChartRodData(
+                        toY: data[i],
+                        width: 14,
+                        borderRadius: BorderRadius.circular(6),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4D88F8), Color(0xFF1FD38A)],
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -500,5 +605,76 @@ class _StatsScreenState extends State<StatsScreen> {
         (month >= 1 && month <= 12) ? months[month - 1] : parts[1];
 
     return '$monthName $day, $year';
+  }
+}
+
+// ✅ NEW: Premium Animated Circular Progress Widget
+class AnimatedProgressRing extends StatelessWidget {
+  final double progress;
+  const AnimatedProgressRing({super.key, required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder(
+      tween: Tween<double>(begin: 0.0, end: progress),
+      duration: const Duration(seconds: 1, milliseconds: 200), // Smooth duration
+      curve: Curves.easeInOutCubic, // Smooth curve
+      builder: (context, value, _) {
+        return Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4D88F8).withOpacity(0.3), // Inner premium glow
+                blurRadius: 30,
+                spreadRadius: -10,
+              )
+            ],
+          ),
+          child: SizedBox(
+            height: 180,
+            width: 180,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  height: 180,
+                  width: 180,
+                  child: CircularProgressIndicator(
+                    value: value,
+                    strokeWidth: 12,
+                    backgroundColor: Colors.white.withOpacity(0.08),
+                    valueColor: const AlwaysStoppedAnimation(Color(0xFF4D88F8)),
+                    strokeCap: StrokeCap.round, // Rounded ends
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${(value * 100).toInt()}%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const Text(
+                      'Completed',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
