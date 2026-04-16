@@ -11,13 +11,15 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Firebase & Google Sign-in (New)
-  firebase_core: 
-  firebase_auth: 
-  cloud_firestore: 
-  google_sign_in: 
+  # Firebase Core and Auth (Stable)
+  firebase_core: ^2.24.0
+  firebase_auth: ^4.15.0
+  cloud_firestore: ^4.13.0
+  
+  # Google Sign-In (Locked to stable 6.2.1 to fix your build error)
+  google_sign_in: ^6.2.1
 
-  # Notifications
+  # Notifications & Alarms
   flutter_local_notifications: ^17.2.1
   timezone: ^0.9.4
   flutter_timezone: ^3.0.0
