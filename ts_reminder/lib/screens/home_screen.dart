@@ -9,7 +9,7 @@ import '../services/audio_service.dart';
 import '../services/daily_task_reset_service.dart';
 import '../services/midnight_alarm_service.dart';
 import '../utils/colors.dart';
-import '../widgets/assistant_robot_card.dart';
+import '../widgets/assistant_card.dart'; // ✅ অরিজিনাল ইমপোর্ট
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
 import 'daily_report_screen.dart';
@@ -108,17 +108,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  double _taskProgress() {
-    if (totalTasks == 0) return 0.0;
-    final doneOrSkipped = totalTasks - unfinishedTasks;
-    return (doneOrSkipped / totalTasks).clamp(0.0, 1.0);
-  }
-
-  double _studyProgress() {
-    const int targetMinutes = 120;
-    return (dailyStudyMinutes / targetMinutes).clamp(0.0, 1.0);
-  }
-
   Future<void> _playAssistantVoice() async {
     await Future.delayed(const Duration(milliseconds: 300));
 
@@ -213,10 +202,8 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildTopBar(),
               const SizedBox(height: 20),
 
-              // ✅ Correct AssistantRobotCard Call
-              AssistantRobotCard(
-                taskProgress: _taskProgress(),
-                studyProgress: _studyProgress(),
+              // ✅ আপনার অরিজিনাল AssistantCard
+              AssistantCard(
                 greeting: greeting,
                 message: assistantText,
                 isSpeaking: isAssistantSpeaking,
@@ -379,6 +366,7 @@ class _QuickActionButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const _QuickActionButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.onTap,
