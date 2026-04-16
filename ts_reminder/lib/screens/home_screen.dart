@@ -9,7 +9,7 @@ import '../services/audio_service.dart';
 import '../services/daily_task_reset_service.dart'; // ✅ Added
 import '../services/midnight_alarm_service.dart';   // ✅ Added
 import '../utils/colors.dart';
-import '../widgets/assistant_card.dart';
+import '../widgets/assistant_robot_card.dart'; // ✅ REPLACED import
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_card.dart';
 import 'daily_report_screen.dart';
@@ -41,10 +41,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initApp(); // ✅ Changed to use the new _initApp() method
+    _initApp();
   }
 
-  // ✅ NEW: Fallback logic for handling day rollover and alarms
+  // Fallback logic for handling day rollover and alarms
   Future<void> _initApp() async {
     await DailyTaskResetService.handleDayRollover();
     await MidnightAlarmService.reschedule();
@@ -79,6 +79,22 @@ class _HomeScreenState extends State<HomeScreen> {
       unfinishedTasks = pendingCount;
       highPriorityPendingCount = highPriorityCount;
     });
+  }
+
+  // ✅ NEW: Task Progress Calculation
+  double _taskProgress() {
+    if (totalTasks == 0) return 0.0;
+    final done = totalTasks - unfinishedTasks;
+    return done / totalTasks;
+  }
+
+  // ✅ NEW: Study Progress Calculation
+  double _studyProgress() {
+    // example: 120 min target
+    const target = 120;
+    // তুমি চাইলে prefs থেকে নিতে পারো
+    int studiedMinutes = 0;
+    return (studiedMinutes / target).clamp(0, 1).toDouble();
   }
 
   Future<void> _playAssistantVoice() async {
@@ -180,12 +196,15 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _buildTopBar(),
               const SizedBox(height: 20),
-              AssistantCard(
+              
+              // ✅ REPLACED: Added the new AssistantRobotCard
+              AssistantRobotCard(
+                taskProgress: _taskProgress(),
+                studyProgress: _studyProgress(),
                 greeting: greeting,
                 message: assistantText,
-                isSpeaking: isAssistantSpeaking,
-                waveValues: waveValues,
               ),
+              
               const SizedBox(height: 18),
               _buildQuickActions(),
               const SizedBox(height: 18),
