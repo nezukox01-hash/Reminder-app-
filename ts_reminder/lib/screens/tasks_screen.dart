@@ -5,7 +5,7 @@ import '../helpers/task_helper.dart';
 import '../models/task_item.dart';
 import '../services/audio_service.dart';
 import '../services/task_reminder_service.dart';
-import '../services/daily_task_reset_service.dart'; // ✅ Added
+import '../services/daily_task_reset_service.dart';
 import '../utils/colors.dart';
 import '../widgets/extra/magic_five_bubble.dart';
 import '../widgets/extra/skip_motivation_dialog.dart';
@@ -24,8 +24,14 @@ class _TasksScreenState extends State<TasksScreen> {
   SharedPreferences? _prefs;
   OverlayEntry? _magicFiveEntry;
   
-  // ✅ NEW: Flag to prevent repeated post-load popups
+  // ✅ Flag to prevent repeated post-load popups
   bool _hasShownAllDonePopup = false; 
+
+  // ✅ NEW: Helper to get today's date
+  String get _todayDate {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
 
   @override
   void initState() {
@@ -42,7 +48,6 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _loadTasks() async {
     _prefs = await SharedPreferences.getInstance();
     
-    // ✅ Check day rollover before loading tasks
     await DailyTaskResetService.handleDayRollover();
 
     final data = _prefs?.getStringList(storageKey) ?? [];
@@ -57,7 +62,6 @@ class _TasksScreenState extends State<TasksScreen> {
       setState(() {});
     }
     
-    // ✅ Check if all tasks are completed immediately after loading
     await _checkAndShowAllDonePopup();
   }
 
@@ -145,7 +149,6 @@ class _TasksScreenState extends State<TasksScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildField(
-                    // line numbers are just for reference and do not need to be typed
                       label: 'Task Title',
                       controller: titleController,
                     ),
@@ -308,6 +311,7 @@ class _TasksScreenState extends State<TasksScreen> {
                         reminderTime: reminderString,
                         focusMinutes: focusMinutes,
                         priority: selectedPriority,
+                        taskDate: _todayDate, // ✅ NEW: Task binds to today's date
                       );
                       _tasks.add(savedTask);
                     } else {
@@ -435,25 +439,21 @@ class _TasksScreenState extends State<TasksScreen> {
     Overlay.of(context).insert(_magicFiveEntry!);
   }
 
-  // ✅ NEW: Post-Load Safety Popup Logic Check
   Future<void> _checkAndShowAllDonePopup() async {
     final hasTasks = _tasks.isNotEmpty;
     final hasActiveTasks = _tasks.any((e) => !e.isDone && !e.isSkipped);
     
-    // If list is empty, or there are still active tasks, reset flag and return.
     if (!hasTasks || hasActiveTasks) {
       _hasShownAllDonePopup = false;
       return;
     }
     
-    // If flag is true, we already shown it in this session, return.
     if (_hasShownAllDonePopup) return;
     
-    _hasShownAllDonePopup = true; // Set flag so it only shows once per page entry
+    _hasShownAllDonePopup = true; 
     
     if (!mounted) return;
     
-    // ✅ Wait for the list to render, then show popup
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final result = await showDialog<bool>(
@@ -487,7 +487,6 @@ class _TasksScreenState extends State<TasksScreen> {
     });
   }
 
-  // ✅ UPDATED: Call Popup Logic Check on Toggle/Skip
   Future<void> _checkAllCompletedToggle(int previousPending, int currentPending, int total) async {
     if (previousPending > 0 && currentPending == 0 && total > 0) {
       await AudioService.playAllTasksCompleted();
@@ -545,7 +544,6 @@ class _TasksScreenState extends State<TasksScreen> {
     final int currentPendingCount = _tasks.where((e) => !e.isDone && !e.isSkipped).length;
     final int totalTasksCount = _tasks.length;
     
-    // ✅ Check if it was the last task
     await _checkAllCompletedToggle(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
@@ -675,7 +673,6 @@ class _TasksScreenState extends State<TasksScreen> {
       await AudioService.playTaskCompleted();
     }
     
-    // ✅ Check if all tasks are done
     await _checkAllCompletedToggle(previousPendingCount, currentPendingCount, totalTasksCount);
   }
 
