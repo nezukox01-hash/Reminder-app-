@@ -2,14 +2,13 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:firebase_auth/firebase_auth.dart';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/task_item.dart';
 import '../services/audio_service.dart';
-import '../services/auth_service.dart'; // Added
-import '../services/cloud_sync_service.dart'; // Added
+import '../services/auth_service.dart'; 
+import '../services/cloud_sync_service.dart'; 
 import '../services/daily_task_reset_service.dart';
 import '../services/midnight_alarm_service.dart';
 import '../utils/colors.dart';
@@ -45,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool isAssistantSpeaking = true;
   bool _hasPlayedOnce = false;
-  bool _isLoading = false; // For login loading state
+  bool _isLoading = false; 
 
   Timer? _waveTimer;
   final Random _random = Random();
@@ -76,11 +75,19 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // ✅ Updated: Safe Data Loading & Cache Refresh
   Future<void> _loadTaskData() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload(); // Force refresh cache
+
     final data = prefs.getStringList(tasksKey) ?? [];
 
-    final tasks = data.map((e) => TaskItem.fromStorage(e)).toList();
+    List<TaskItem> tasks = [];
+    try {
+      tasks = data.map((e) => TaskItem.fromStorage(e)).toList();
+    } catch (e) {
+      debugPrint("Parsing error: $e");
+    }
 
     final todayTasks = tasks.where((task) {
       final date = task.taskDate.isEmpty ? todayDate : task.taskDate;
@@ -113,37 +120,64 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // ✅ Login logic (Updated)
+  // ✅ New: Manual Sync Action (Uploads new data, then downloads)
+  Future<void> _manualSync() async {
+    final user = AuthService.currentUser;
+    if (user == null) return;
+
+    setState(() => _isLoading = true);
+    
+    try {
+      // 1. Upload phone's latest stats to Firebase
+      await CloudSyncService.uploadData(user.uid);
+      
+      // 2. Download everything from Firebase to update local list
+      await CloudSyncService.downloadData(user.uid);
+      
+      // 3. Force UI refresh
+      await _loadTaskData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Data successfully synced! 🚀", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+            backgroundColor: Color(0xFF20C08A),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Sync error: $e");
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // ✅ Updated: Login with delay to ensure download finishes
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
     final user = await AuthService.signInWithGoogle();
     
     if (user != null) {
-      // ১. ক্লাউড থেকে ডাটা নামানো হবে
       await CloudSyncService.downloadData(user.uid);
-      
-      // ২. লোকাল স্টোরেজ জোর করে রিফ্রেশ করা (যাতে ক্যাশ ক্লিয়ার হয়)
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.reload(); 
-      
-      // ৩. নতুন ডাটা দিয়ে স্ক্রিন আপডেট করা
+      await Future.delayed(const Duration(milliseconds: 500)); 
       await _loadTaskData();
     }
     if (mounted) setState(() => _isLoading = false);
   }
 
-  // ✅ Logout logic (Updated)
+  // ✅ Updated: Clear local cache on logout
   Future<void> _handleLogout() async {
     await AuthService.signOut();
     
-    // লগআউটের সময় ফোনের লোকাল ডাটা মুছে ফেলা (যাতে নতুন লগইনে ঝামেলা না হয়)
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(tasksKey);
     await prefs.remove(dailyTimerDateKey);
     await prefs.remove(dailyCompletedSessionsKey);
     await prefs.remove(dailyStudySecondsKey);
 
-    // স্ক্রিনের সংখ্যাগুলো জিরো করে দেওয়া
     if (mounted) {
       setState(() {
         totalTasks = 0;
@@ -282,21 +316,39 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+        
+        // ✅ The Sync Button (Visible only when logged in)
+        if (user != null)
+          Padding(
+            padding: const EdgeInsets.only(right: 14.0),
+            child: IconButton(
+              onPressed: _isLoading ? null : _manualSync,
+              icon: _isLoading 
+                  ? const SizedBox(
+                      height: 20, width: 20, 
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                    )
+                  : const Icon(Icons.sync_rounded, color: Colors.white, size: 30),
+              tooltip: 'Sync Data',
+            ),
+          ),
+
         GestureDetector(
           onTap: user == null ? _handleLogin : () {
             showDialog(
               context: context,
               builder: (ctx) => AlertDialog(
-                title: const Text("Account"),
-                content: Text("Logged in as ${user.displayName ?? 'User'}"),
+                backgroundColor: const Color(0xFF102643),
+                title: const Text("Account", style: TextStyle(color: Colors.white)),
+                content: Text("Logged in as ${user.displayName ?? 'User'}", style: const TextStyle(color: Colors.white70)),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Close")),
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Close", style: TextStyle(color: Colors.white70))),
                   TextButton(
                     onPressed: () { 
                       Navigator.pop(ctx); 
                       _handleLogout(); 
                     }, 
-                    child: const Text("Logout", style: TextStyle(color: Colors.red))
+                    child: const Text("Logout", style: TextStyle(color: Colors.redAccent))
                   ),
                 ],
               ),
@@ -323,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     )
                   : const Icon(Icons.person_outline_rounded, color: Colors.white, size: 32))
               : (user.photoURL != null 
-                  ? null // If photo exists, DecorationImage handles it
+                  ? null 
                   : Center(
                       child: Text(
                         (user.displayName != null && user.displayName!.isNotEmpty) 
