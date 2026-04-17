@@ -1,4 +1,11 @@
+import 'dart:ui' as ui;
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/daily_report_model.dart';
@@ -29,6 +36,9 @@ class _StatsScreenState extends State<StatsScreen> {
   int studyMinutes = 0;
 
   bool _isLoading = true;
+
+  // ✅ Image Share করার জন্য কার্ডগুলোর আলাদা Key রাখার Map
+  final Map<String, GlobalKey> _logKeys = {};
 
   String get todayDate {
     final now = DateTime.now();
@@ -88,7 +98,6 @@ class _StatsScreenState extends State<StatsScreen> {
         ? (prefs.getInt(dailyStudySecondsKey) ?? 0)
         : 0;
 
-    // ✅ NEW: Fallback logic checking existing report if live looks empty
     final savedReport = await DailyReportService.getReportByDate(todayDate);
 
     final bool liveLooksEmpty =
@@ -164,6 +173,41 @@ class _StatsScreenState extends State<StatsScreen> {
 
   Future<void> _refresh() async {
     await _loadEverything();
+  }
+
+  // ✅ NEW: Report Card কে Image (PNG) বানিয়ে শেয়ার করার ম্যাজিক ফাংশন
+  Future<void> _shareLogAsImage(GlobalKey key, String date) async {
+    try {
+      // 1. UI থেকে Boundary (Frame) বের করা
+      RenderRepaintBoundary boundary =
+          key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+          
+      // 2. সেটিকে High Quality Image এ কনভার্ট করা
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      
+      // 3. Image কে Byte Data (PNG Format) এ রূপান্তর করা
+      ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+      // 4. Temporary মেমোরিতে ছবিটা সেভ করা
+      final directory = await getTemporaryDirectory();
+      final imagePath = await File('${directory.path}/TS_Report_$date.png').create();
+      await imagePath.writeAsBytes(pngBytes);
+
+      // 5. ছবিটা শেয়ার করা
+      await Share.shareXFiles(
+        [XFile(imagePath.path)],
+        text: 'Here is my TS Reminder Daily Report for ${_formatDatePretty(date)}! 🔥',
+      );
+    } catch (e) {
+      debugPrint("Share error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to share image. Please try again.')),
+        );
+      }
+    }
   }
 
   @override
@@ -382,94 +426,140 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
+  // ✅ UPDATED: Added RepaintBoundary for Image export & Share Button
   Widget _dailyLogItem(DailyReport report) {
     final tasksDone = report.completedTasks + report.skippedTasks;
     final totalTasks =
         report.completedTasks + report.skippedTasks + report.pendingTasks;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        color: Colors.white.withOpacity(0.06),
-        border: Border.all(
-          color: report.date == todayDate
-              ? Colors.white.withOpacity(0.10)
-              : Colors.transparent,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _formatDatePretty(report.date),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
+    // প্রতিটি লগের জন্য একটি ইউনিক Key তৈরি করা হলো
+    final key = _logKeys.putIfAbsent(report.date, () => GlobalKey());
+
+    return Stack(
+      children: [
+        // 📸 এই RepaintBoundary এর ভেতরের সবকিছু ছবি হিসেবে সেভ হবে
+        RepaintBoundary(
+          key: key,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              // ছবিটা যেন প্রিমিয়াম লাগে তাই সলিড কালার গ্রেডিয়েন্ট দেওয়া হলো
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1B2E49), Color(0xFF102643)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(
+                color: report.date == todayDate
+                    ? const Color(0xFF42B7FF).withOpacity(0.4)
+                    : Colors.white.withOpacity(0.08),
+                width: 1.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Study Time: ${report.studyMinutes}m',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Tasks Done: $tasksDone/$totalTasks',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Focus Sessions: ${report.focusSessions}',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Text(
-                'Rating: ',
-                style: TextStyle(
-                  color: Color(0xFFFFB84D),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _formatDatePretty(report.date),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              ...List.generate(5, (index) {
-                return Icon(
-                  Icons.star_rounded,
-                  size: 18,
-                  color: index < report.rating
-                      ? const Color(0xFFFFB84D)
-                      : Colors.white24,
-                );
-              }),
-            ],
-          ),
-          if (report.note.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              report.note,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 15,
-                height: 1.4,
-              ),
+                const SizedBox(height: 12),
+                Text(
+                  'Study Time: ${report.studyMinutes}m',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tasks Done: $tasksDone/$totalTasks',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // ✅ Skipped Tasks ব্যাক আনা হলো
+                Text(
+                  'Skipped Tasks: ${report.skippedTasks}',
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Focus Sessions: ${report.focusSessions}',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Text(
+                      'Rating: ',
+                      style: TextStyle(
+                        color: Color(0xFFFFB84D),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    ...List.generate(5, (index) {
+                      return Icon(
+                        Icons.star_rounded,
+                        size: 18,
+                        color: index < report.rating
+                            ? const Color(0xFFFFB84D)
+                            : Colors.white24,
+                      );
+                    }),
+                  ],
+                ),
+                if (report.note.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Note: ${report.note}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ],
-      ),
+          ),
+        ),
+        
+        // 📤 Share Button (ছবির ঠিক উপরে ডানদিকে বসানো)
+        Positioned(
+          top: 8,
+          right: 8,
+          child: IconButton(
+            icon: const Icon(Icons.share_rounded, color: Colors.white70, size: 22),
+            onPressed: () => _shareLogAsImage(key, report.date),
+            tooltip: 'Share as Image',
+          ),
+        ),
+      ],
     );
   }
 
@@ -482,18 +572,8 @@ class _StatsScreenState extends State<StatsScreen> {
     final day = int.tryParse(parts[2]) ?? 1;
 
     const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
     ];
 
     final monthName =
