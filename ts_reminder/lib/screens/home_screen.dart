@@ -75,10 +75,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ✅ Updated: Safe Data Loading & Cache Refresh
+  // ✅ Updated: Removed the dangerous "reload()" trap
   Future<void> _loadTaskData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.reload(); // Force refresh cache
+    
+    // ❌ await prefs.reload(); <- Removed to prevent overwriting new data
 
     final data = prefs.getStringList(tasksKey) ?? [];
 
@@ -120,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // ✅ New: Manual Sync Action (Uploads new data, then downloads)
+  // ✅ Manual Sync Action
   Future<void> _manualSync() async {
     final user = AuthService.currentUser;
     if (user == null) return;
@@ -131,10 +132,10 @@ class _HomeScreenState extends State<HomeScreen> {
       // 1. Upload phone's latest stats to Firebase
       await CloudSyncService.uploadData(user.uid);
       
-      // 2. Download everything from Firebase to update local list
+      // 2. Download everything from Firebase
       await CloudSyncService.downloadData(user.uid);
       
-      // 3. Force UI refresh
+      // 3. Update UI
       await _loadTaskData();
 
       if (mounted) {
@@ -155,20 +156,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ✅ Updated: Login with delay to ensure download finishes
+  // ✅ Updated: Login without delay, directly load fresh data
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
     final user = await AuthService.signInWithGoogle();
     
     if (user != null) {
       await CloudSyncService.downloadData(user.uid);
-      await Future.delayed(const Duration(milliseconds: 500)); 
       await _loadTaskData();
     }
     if (mounted) setState(() => _isLoading = false);
   }
 
-  // ✅ Updated: Clear local cache on logout
   Future<void> _handleLogout() async {
     await AuthService.signOut();
     
