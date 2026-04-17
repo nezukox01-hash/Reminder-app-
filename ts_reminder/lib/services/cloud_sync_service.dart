@@ -30,7 +30,7 @@ class CloudSyncService {
     }
   }
 
-  // 👉 Download Firestore data to local SharedPreferences
+  // 👉 Download Firestore data to local SharedPreferences safely
   static Future<void> downloadData(String uid) async {
     try {
       final doc = await _db.collection('users').doc(uid).get();
@@ -39,19 +39,24 @@ class CloudSyncService {
         final prefs = await SharedPreferences.getInstance();
         final data = doc.data()!;
 
-        // 3. Save Cloud data to Local Storage
-        if (data.containsKey('tasks')) {
-          List<String> cloudTasks = List<String>.from(data['tasks']);
+        // 3. Save Cloud data to Local Storage (Safe Parsing)
+        if (data.containsKey('tasks') && data['tasks'] != null) {
+          // List কে সেফলি String এ কনভার্ট করা হয়েছে
+          List<String> cloudTasks = (data['tasks'] as List).map((e) => e.toString()).toList();
           await prefs.setStringList('ts_tasks_v5', cloudTasks);
         }
-        if (data.containsKey('daily_timer_date')) {
-          await prefs.setString('daily_timer_date', data['daily_timer_date']);
+        
+        if (data.containsKey('daily_timer_date') && data['daily_timer_date'] != null) {
+          await prefs.setString('daily_timer_date', data['daily_timer_date'].toString());
         }
-        if (data.containsKey('focus_sessions')) {
-          await prefs.setInt('daily_completed_focus_sessions', data['focus_sessions']);
+        
+        if (data.containsKey('focus_sessions') && data['focus_sessions'] != null) {
+          // Firebase এর Number কে সেফলি Int এ কনভার্ট করা হয়েছে
+          await prefs.setInt('daily_completed_focus_sessions', (data['focus_sessions'] as num).toInt());
         }
-        if (data.containsKey('study_seconds')) {
-          await prefs.setInt('daily_study_seconds', data['study_seconds']);
+        
+        if (data.containsKey('study_seconds') && data['study_seconds'] != null) {
+          await prefs.setInt('daily_study_seconds', (data['study_seconds'] as num).toInt());
         }
 
         print("Data successfully downloaded from Cloud!");
