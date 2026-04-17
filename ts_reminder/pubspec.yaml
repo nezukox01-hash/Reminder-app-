@@ -35,6 +35,10 @@ dependencies:
   # UI / Charts
   fl_chart: ^0.68.0
 
+  # Sharing & File Path (Newly Added)
+  share_plus: ^10.1.2
+  path_provider: ^2.1.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
