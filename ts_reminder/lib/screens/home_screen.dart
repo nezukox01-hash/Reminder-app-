@@ -262,10 +262,16 @@ class _HomeScreenState extends State<HomeScreen> {
               context: context,
               builder: (ctx) => AlertDialog(
                 title: const Text("Account"),
-                content: Text("Logged in as ${user.displayName}"),
+                content: Text("Logged in as ${user.displayName ?? 'User'}"),
                 actions: [
                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Close")),
-                  TextButton(onPressed: () { Navigator.pop(ctx); _handleLogout(); }, child: const Text("Logout", style: TextStyle(color: Colors.red))),
+                  TextButton(
+                    onPressed: () { 
+                      Navigator.pop(ctx); 
+                      _handleLogout(); 
+                    }, 
+                    child: const Text("Logout", style: TextStyle(color: Colors.red))
+                  ),
                 ],
               ),
             );
@@ -277,14 +283,33 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(20),
               color: AppColors.surface.withOpacity(0.85),
               image: (user != null && user.photoURL != null) 
-                ? DecorationImage(image: NetworkImage(user.photoURL!), fit: BoxFit.cover)
+                ? DecorationImage(
+                    image: NetworkImage(user.photoURL!), 
+                    fit: BoxFit.cover
+                  )
                 : null,
             ),
             child: user == null 
               ? (_isLoading 
-                  ? const Padding(padding: EdgeInsets.all(18), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const Padding(
+                      padding: EdgeInsets.all(18), 
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                    )
                   : const Icon(Icons.person_outline_rounded, color: Colors.white, size: 32))
-              : (user.photoURL == null ? const Icon(Icons.person, color: Colors.white) : null),
+              : (user.photoURL != null 
+                  ? null // If photo exists, DecorationImage handles it
+                  : Center(
+                      child: Text(
+                        (user.displayName != null && user.displayName!.isNotEmpty) 
+                            ? user.displayName![0].toUpperCase() 
+                            : "U",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )),
           ),
         ),
       ],
