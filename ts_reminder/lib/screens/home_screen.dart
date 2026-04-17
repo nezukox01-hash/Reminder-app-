@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:firebase_auth/firebase_auth.dart'; // Added
+import 'package:firebase_auth/package:firebase_auth.dart'; // Added
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -112,21 +112,46 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // ✅ Login logic
+  // ✅ Login logic (Updated)
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
     final user = await AuthService.signInWithGoogle();
+    
     if (user != null) {
+      // ১. ক্লাউড থেকে ডাটা নামানো হবে
       await CloudSyncService.downloadData(user.uid);
+      
+      // ২. লোকাল স্টোরেজ জোর করে রিফ্রেশ করা (যাতে ক্যাশ ক্লিয়ার হয়)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload(); 
+      
+      // ৩. নতুন ডাটা দিয়ে স্ক্রিন আপডেট করা
       await _loadTaskData();
     }
     if (mounted) setState(() => _isLoading = false);
   }
 
-  // ✅ Logout logic
+  // ✅ Logout logic (Updated)
   Future<void> _handleLogout() async {
     await AuthService.signOut();
-    if (mounted) setState(() {});
+    
+    // লগআউটের সময় ফোনের লোকাল ডাটা মুছে ফেলা (যাতে নতুন লগইনে ঝামেলা না হয়)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(tasksKey);
+    await prefs.remove(dailyTimerDateKey);
+    await prefs.remove(dailyCompletedSessionsKey);
+    await prefs.remove(dailyStudySecondsKey);
+
+    // স্ক্রিনের সংখ্যাগুলো জিরো করে দেওয়া
+    if (mounted) {
+      setState(() {
+        totalTasks = 0;
+        unfinishedTasks = 0;
+        highPriorityPendingCount = 0;
+        dailyStudyMinutes = 0;
+        dailyFocusSessions = 0;
+      });
+    }
   }
 
   Future<void> _playAssistantVoice() async {
