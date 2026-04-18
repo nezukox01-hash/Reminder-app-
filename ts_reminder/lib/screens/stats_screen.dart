@@ -37,7 +37,6 @@ class _StatsScreenState extends State<StatsScreen> {
 
   bool _isLoading = true;
 
-  // ✅ Image Share করার জন্য কার্ডগুলোর আলাদা Key রাখার Map
   final Map<String, GlobalKey> _logKeys = {};
 
   String get todayDate {
@@ -52,19 +51,12 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> _loadEverything() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     await _loadLiveStats();
     await _loadReports();
     _buildDisplayLogs();
-
     if (!mounted) return;
-
-    setState(() {
-      _isLoading = false;
-    });
+    setState(() => _isLoading = false);
   }
 
   Future<void> _loadLiveStats() async {
@@ -77,7 +69,6 @@ class _StatsScreenState extends State<StatsScreen> {
 
     for (final item in taskData) {
       final parts = item.split('||');
-
       final isDone = parts.length > 3 && parts[3] == 'true';
       final isSkipped = parts.length > 4 && parts[4] == 'true';
 
@@ -91,21 +82,12 @@ class _StatsScreenState extends State<StatsScreen> {
     }
 
     final savedTimerDate = prefs.getString(dailyTimerDateKey) ?? '';
-    int dailySessions = savedTimerDate == todayDate
-        ? (prefs.getInt(dailyCompletedSessionsKey) ?? 0)
-        : 0;
-    int dailyStudySeconds = savedTimerDate == todayDate
-        ? (prefs.getInt(dailyStudySecondsKey) ?? 0)
-        : 0;
+    int dailySessions = savedTimerDate == todayDate ? (prefs.getInt(dailyCompletedSessionsKey) ?? 0) : 0;
+    int dailyStudySeconds = savedTimerDate == todayDate ? (prefs.getInt(dailyStudySecondsKey) ?? 0) : 0;
 
     final savedReport = await DailyReportService.getReportByDate(todayDate);
 
-    final bool liveLooksEmpty =
-        completed == 0 &&
-        skipped == 0 &&
-        pending == 0 &&
-        dailySessions == 0 &&
-        dailyStudySeconds == 0;
+    final bool liveLooksEmpty = completed == 0 && skipped == 0 && pending == 0 && dailySessions == 0 && dailyStudySeconds == 0;
 
     if (savedReport != null && liveLooksEmpty) {
       completed = savedReport.completedTasks;
@@ -128,9 +110,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
   Future<void> _loadReports() async {
     final data = await DailyReportService.getReports();
-
     if (!mounted) return;
-
     setState(() {
       _savedReports = data;
     });
@@ -138,13 +118,10 @@ class _StatsScreenState extends State<StatsScreen> {
 
   void _buildDisplayLogs() {
     final List<DailyReport> logs = List<DailyReport>.from(_savedReports);
-
     final int todayIndex = logs.indexWhere((e) => e.date == todayDate);
 
     if (todayIndex != -1) {
-      final existing = logs[todayIndex];
-
-      logs[todayIndex] = existing.copyWith(
+      logs[todayIndex] = logs[todayIndex].copyWith(
         completedTasks: completedTasks,
         skippedTasks: skippedTasks,
         pendingTasks: pendingTasks,
@@ -175,39 +152,103 @@ class _StatsScreenState extends State<StatsScreen> {
     await _loadEverything();
   }
 
-  // ✅ NEW: Report Card কে Image (PNG) বানিয়ে শেয়ার করার ম্যাজিক ফাংশন
   Future<void> _shareLogAsImage(GlobalKey key, String date) async {
     try {
-      // 1. UI থেকে Boundary (Frame) বের করা
-      RenderRepaintBoundary boundary =
-          key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-          
-      // 2. সেটিকে High Quality Image এ কনভার্ট করা
+      RenderRepaintBoundary boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
       ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      
-      // 3. Image কে Byte Data (PNG Format) এ রূপান্তর করা
-      ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List pngBytes = byteData!.buffer.asUint8List();
 
-      // 4. Temporary মেমোরিতে ছবিটা সেভ করা
       final directory = await getTemporaryDirectory();
       final imagePath = await File('${directory.path}/TS_Report_$date.png').create();
       await imagePath.writeAsBytes(pngBytes);
 
-      // 5. ছবিটা শেয়ার করা
       await Share.shareXFiles(
         [XFile(imagePath.path)],
         text: 'Here is my TS Reminder Daily Report for ${_formatDatePretty(date)}! 🔥',
       );
     } catch (e) {
       debugPrint("Share error: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to share image. Please try again.')),
-        );
-      }
     }
+  }
+
+  // ✅ ম্যাজিক শেয়ার প্রিভিউ ডায়লগ
+  void _showMagicPreviewDialog(DailyReport report) {
+    final GlobalKey magicKey = GlobalKey();
+    final tasksDone = report.completedTasks + report.skippedTasks;
+    final totalTasks = report.completedTasks + report.skippedTasks + report.pendingTasks;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 📸 এই RepaintBoundary নোটখাতার ডিজাইনের ছবি তুলবে
+            RepaintBoundary(
+              key: magicKey,
+              child: Container(
+                width: 320,
+                height: 480,
+                decoration: const BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage('assets/images/magic_bg.png'), // আপনার আপলোড করা ছবি
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 170, left: 45, right: 45), // নোটখাতার মাঝখানে লেখার জন্য প্যাডিং
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        _formatDatePretty(report.date),
+                        style: const TextStyle(
+                          color: Color(0xFF6AE2C1), // পান্ডার নিচের লেখার কালারের সাথে মিলিয়ে
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 25),
+                      Text('Study Time: ${report.studyMinutes}m', style: _magicStyle()),
+                      const SizedBox(height: 12),
+                      Text('Tasks Done: $tasksDone/$totalTasks', style: _magicStyle()),
+                      const SizedBox(height: 12),
+                      Text('Focus Sessions: ${report.focusSessions}', style: _magicStyle()),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6AE2C1),
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              onPressed: () async {
+                Navigator.pop(ctx); // ডায়লগ বন্ধ করে শেয়ার করবে
+                await _shareLogAsImage(magicKey, 'Magic_${report.date}');
+              },
+              icon: const Icon(Icons.share_rounded),
+              label: const Text('Share Magic Card', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  TextStyle _magicStyle() {
+    return const TextStyle(
+      color: Color(0xFF555555), // সাদা খাতার ওপর গাঢ় ছাই রঙের লেখা
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+    );
   }
 
   @override
@@ -269,11 +310,7 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildTodayOverviewCard({
-    required int todayTasksDone,
-    required int totalTodayTasks,
-    required int savedReportsCount,
-  }) {
+  Widget _buildTodayOverviewCard({required int todayTasksDone, required int totalTodayTasks, required int savedReportsCount}) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -284,52 +321,22 @@ class _StatsScreenState extends State<StatsScreen> {
           end: Alignment.bottomRight,
         ),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 14, offset: const Offset(0, 8)),
         ],
-        border: Border.all(
-          color: Colors.white.withOpacity(0.08),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Overview',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          const Text('Overview', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
           const SizedBox(height: 18),
-          _overviewRow(
-            Icons.swap_horiz_rounded,
-            'Focus Sessions',
-            '$focusSessions',
-          ),
+          _overviewRow(Icons.swap_horiz_rounded, 'Focus Sessions', '$focusSessions'),
           const SizedBox(height: 16),
-          _overviewRow(
-            Icons.timer_outlined,
-            'Total Study Time',
-            '${studyMinutes}m',
-          ),
+          _overviewRow(Icons.timer_outlined, 'Total Study Time', '${studyMinutes}m'),
           const SizedBox(height: 16),
-          _overviewRow(
-            Icons.check_circle_rounded,
-            'Today Tasks Done',
-            '$todayTasksDone/$totalTodayTasks',
-          ),
+          _overviewRow(Icons.check_circle_rounded, 'Today Tasks Done', '$todayTasksDone/$totalTodayTasks'),
           const SizedBox(height: 16),
-          _overviewRow(
-            Icons.history_rounded,
-            'Saved Reports',
-            '$savedReportsCount',
-          ),
+          _overviewRow(Icons.history_rounded, 'Saved Reports', '$savedReportsCount'),
         ],
       ),
     );
@@ -340,24 +347,8 @@ class _StatsScreenState extends State<StatsScreen> {
       children: [
         Icon(icon, color: const Color(0xFF42B7FF), size: 28),
         const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.primaryText,
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        Expanded(child: Text(label, style: const TextStyle(color: AppColors.primaryText, fontSize: 17, fontWeight: FontWeight.w700))),
+        Text(value, style: const TextStyle(color: AppColors.primaryText, fontSize: 17, fontWeight: FontWeight.w800)),
       ],
     );
   }
@@ -373,52 +364,26 @@ class _StatsScreenState extends State<StatsScreen> {
           end: Alignment.bottomRight,
         ),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 14, offset: const Offset(0, 8)),
         ],
-        border: Border.all(
-          color: Colors.white.withOpacity(0.08),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Daily Logs',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          const Text('Daily Logs', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
           const SizedBox(height: 18),
           if (_displayLogs.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                color: Colors.white.withOpacity(0.05),
-              ),
-              child: const Text(
-                'No daily logs yet.',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-              ),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), color: Colors.white.withOpacity(0.05)),
+              child: const Text('No daily logs yet.', style: TextStyle(color: Colors.white70, fontSize: 14)),
             )
           else
             Column(
               children: _displayLogs.map((report) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: _dailyLogItem(report),
-                );
+                return Padding(padding: const EdgeInsets.only(bottom: 14), child: _dailyLogItem(report));
               }).toList(),
             ),
         ],
@@ -426,18 +391,13 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  // ✅ UPDATED: Added RepaintBoundary for Image export & Share Button
   Widget _dailyLogItem(DailyReport report) {
     final tasksDone = report.completedTasks + report.skippedTasks;
-    final totalTasks =
-        report.completedTasks + report.skippedTasks + report.pendingTasks;
-
-    // প্রতিটি লগের জন্য একটি ইউনিক Key তৈরি করা হলো
+    final totalTasks = report.completedTasks + report.skippedTasks + report.pendingTasks;
     final key = _logKeys.putIfAbsent(report.date, () => GlobalKey());
 
     return Stack(
       children: [
-        // 📸 এই RepaintBoundary এর ভেতরের সবকিছু ছবি হিসেবে সেভ হবে
         RepaintBoundary(
           key: key,
           child: Container(
@@ -445,118 +405,58 @@ class _StatsScreenState extends State<StatsScreen> {
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
-              // ছবিটা যেন প্রিমিয়াম লাগে তাই সলিড কালার গ্রেডিয়েন্ট দেওয়া হলো
               gradient: const LinearGradient(
                 colors: [Color(0xFF1B2E49), Color(0xFF102643)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               border: Border.all(
-                color: report.date == todayDate
-                    ? const Color(0xFF42B7FF).withOpacity(0.4)
-                    : Colors.white.withOpacity(0.08),
+                color: report.date == todayDate ? const Color(0xFF42B7FF).withOpacity(0.4) : Colors.white.withOpacity(0.08),
                 width: 1.5,
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _formatDatePretty(report.date),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                Text(_formatDatePretty(report.date), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 12),
-                Text(
-                  'Study Time: ${report.studyMinutes}m',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 15,
-                  ),
-                ),
+                Text('Study Time: ${report.studyMinutes}m', style: const TextStyle(color: Colors.white70, fontSize: 15)),
                 const SizedBox(height: 6),
-                Text(
-                  'Tasks Done: $tasksDone/$totalTasks',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 15,
-                  ),
-                ),
+                Text('Tasks Done: $tasksDone/$totalTasks', style: const TextStyle(color: Colors.white70, fontSize: 15)),
                 const SizedBox(height: 6),
-                // ✅ Skipped Tasks ব্যাক আনা হলো
-                Text(
-                  'Skipped Tasks: ${report.skippedTasks}',
-                  style: const TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 15,
-                  ),
-                ),
+                Text('Skipped Tasks: ${report.skippedTasks}', style: const TextStyle(color: Colors.redAccent, fontSize: 15)),
                 const SizedBox(height: 6),
-                Text(
-                  'Focus Sessions: ${report.focusSessions}',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 15,
-                  ),
-                ),
+                Text('Focus Sessions: ${report.focusSessions}', style: const TextStyle(color: Colors.white70, fontSize: 15)),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    const Text(
-                      'Rating: ',
-                      style: TextStyle(
-                        color: Color(0xFFFFB84D),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    ...List.generate(5, (index) {
-                      return Icon(
-                        Icons.star_rounded,
-                        size: 18,
-                        color: index < report.rating
-                            ? const Color(0xFFFFB84D)
-                            : Colors.white24,
-                      );
-                    }),
+                    const Text('Rating: ', style: TextStyle(color: Color(0xFFFFB84D), fontSize: 15, fontWeight: FontWeight.w800)),
+                    ...List.generate(5, (index) => Icon(Icons.star_rounded, size: 18, color: index < report.rating ? const Color(0xFFFFB84D) : Colors.white24)),
                   ],
                 ),
-                if (report.note.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Note: ${report.note}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontStyle: FontStyle.italic,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
         ),
         
-        // 📤 Share Button (ছবির ঠিক উপরে ডানদিকে বসানো)
+        // 📤 Magic and Regular Share Buttons
         Positioned(
           top: 8,
           right: 8,
-          child: IconButton(
-            icon: const Icon(Icons.share_rounded, color: Colors.white70, size: 22),
-            onPressed: () => _shareLogAsImage(key, report.date),
-            tooltip: 'Share as Image',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Text('🪄', style: TextStyle(fontSize: 20)),
+                onPressed: () => _showMagicPreviewDialog(report),
+                tooltip: 'Magic Share',
+              ),
+              IconButton(
+                icon: const Icon(Icons.share_rounded, color: Colors.white70, size: 22),
+                onPressed: () => _shareLogAsImage(key, report.date),
+                tooltip: 'Standard Share',
+              ),
+            ],
           ),
         ),
       ],
@@ -566,19 +466,11 @@ class _StatsScreenState extends State<StatsScreen> {
   String _formatDatePretty(String date) {
     final parts = date.split('-');
     if (parts.length != 3) return date;
-
     final year = parts[0];
     final month = int.tryParse(parts[1]) ?? 1;
     final day = int.tryParse(parts[2]) ?? 1;
-
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ];
-
-    final monthName =
-        (month >= 1 && month <= 12) ? months[month - 1] : parts[1];
-
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    final monthName = (month >= 1 && month <= 12) ? months[month - 1] : parts[1];
     return '$monthName $day, $year';
   }
 }
