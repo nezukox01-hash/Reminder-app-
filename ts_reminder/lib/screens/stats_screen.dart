@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/daily_report_model.dart';
 import '../services/daily_report_service.dart';
 import '../utils/colors.dart';
+import '../widgets/magic_share_dialog.dart'; // ✅ নতুন ম্যাজিক উইজেট ইম্পোর্ট করা হলো
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
@@ -170,85 +171,6 @@ class _StatsScreenState extends State<StatsScreen> {
     } catch (e) {
       debugPrint("Share error: $e");
     }
-  }
-
-  // ✅ ম্যাজিক শেয়ার প্রিভিউ ডায়লগ
-  void _showMagicPreviewDialog(DailyReport report) {
-    final GlobalKey magicKey = GlobalKey();
-    final tasksDone = report.completedTasks + report.skippedTasks;
-    final totalTasks = report.completedTasks + report.skippedTasks + report.pendingTasks;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 📸 এই RepaintBoundary নোটখাতার ডিজাইনের ছবি তুলবে
-            RepaintBoundary(
-              key: magicKey,
-              child: Container(
-                width: 320,
-                height: 480,
-                decoration: const BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage('assets/images/magic_bg.png'), // আপনার আপলোড করা ছবি
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 170, left: 45, right: 45), // নোটখাতার মাঝখানে লেখার জন্য প্যাডিং
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        _formatDatePretty(report.date),
-                        style: const TextStyle(
-                          color: Color(0xFF6AE2C1), // পান্ডার নিচের লেখার কালারের সাথে মিলিয়ে
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 25),
-                      Text('Study Time: ${report.studyMinutes}m', style: _magicStyle()),
-                      const SizedBox(height: 12),
-                      Text('Tasks Done: $tasksDone/$totalTasks', style: _magicStyle()),
-                      const SizedBox(height: 12),
-                      Text('Focus Sessions: ${report.focusSessions}', style: _magicStyle()),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6AE2C1),
-                foregroundColor: Colors.black87,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
-              onPressed: () async {
-                Navigator.pop(ctx); // ডায়লগ বন্ধ করে শেয়ার করবে
-                await _shareLogAsImage(magicKey, 'Magic_${report.date}');
-              },
-              icon: const Icon(Icons.share_rounded),
-              label: const Text('Share Magic Card', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  TextStyle _magicStyle() {
-    return const TextStyle(
-      color: Color(0xFF555555), // সাদা খাতার ওপর গাঢ় ছাই রঙের লেখা
-      fontSize: 18,
-      fontWeight: FontWeight.w700,
-    );
   }
 
   @override
@@ -448,7 +370,13 @@ class _StatsScreenState extends State<StatsScreen> {
             children: [
               IconButton(
                 icon: const Text('🪄', style: TextStyle(fontSize: 20)),
-                onPressed: () => _showMagicPreviewDialog(report),
+                onPressed: () {
+                  // ✅ নতুন আলাদা উইজেটকে কল করা হচ্ছে
+                  showDialog(
+                    context: context,
+                    builder: (_) => MagicShareDialog(report: report),
+                  );
+                },
                 tooltip: 'Magic Share',
               ),
               IconButton(
