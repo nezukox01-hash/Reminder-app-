@@ -14,6 +14,9 @@ class CloudSyncService {
       final String timerDate = prefs.getString('daily_timer_date') ?? '';
       final int focusSessions = prefs.getInt('daily_completed_focus_sessions') ?? 0;
       final int studySeconds = prefs.getInt('daily_study_seconds') ?? 0;
+      
+      // ✅ NEW: Get Daily Reports (History)
+      final List<String> reportsData = prefs.getStringList('ts_daily_reports_v1') ?? [];
 
       // 2. Save to Firestore under the user's unique ID
       await _db.collection('users').doc(uid).set({
@@ -21,6 +24,7 @@ class CloudSyncService {
         'daily_timer_date': timerDate,
         'focus_sessions': focusSessions,
         'study_seconds': studySeconds,
+        'reports': reportsData, // ✅ NEW: Save reports to Firebase
         'last_sync': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true)); // merge: true updates only changed fields
 
@@ -41,7 +45,6 @@ class CloudSyncService {
 
         // 3. Save Cloud data to Local Storage (Safe Parsing)
         if (data.containsKey('tasks') && data['tasks'] != null) {
-          // List কে সেফলি String এ কনভার্ট করা হয়েছে
           List<String> cloudTasks = (data['tasks'] as List).map((e) => e.toString()).toList();
           await prefs.setStringList('ts_tasks_v5', cloudTasks);
         }
@@ -51,12 +54,17 @@ class CloudSyncService {
         }
         
         if (data.containsKey('focus_sessions') && data['focus_sessions'] != null) {
-          // Firebase এর Number কে সেফলি Int এ কনভার্ট করা হয়েছে
           await prefs.setInt('daily_completed_focus_sessions', (data['focus_sessions'] as num).toInt());
         }
         
         if (data.containsKey('study_seconds') && data['study_seconds'] != null) {
           await prefs.setInt('daily_study_seconds', (data['study_seconds'] as num).toInt());
+        }
+
+        // ✅ NEW: Download Daily Reports (History) safely
+        if (data.containsKey('reports') && data['reports'] != null) {
+          List<String> cloudReports = (data['reports'] as List).map((e) => e.toString()).toList();
+          await prefs.setStringList('ts_daily_reports_v1', cloudReports);
         }
 
         print("Data successfully downloaded from Cloud!");
