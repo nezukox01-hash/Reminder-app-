@@ -16,7 +16,7 @@ dependencies:
   firebase_auth: ^4.15.0
   cloud_firestore: ^4.13.0
   
-  # Google Sign-In (Locked to stable 6.2.1 to fix your build error)
+  # Google Sign-In (Locked to stable 6.2.1)
   google_sign_in: ^6.2.1
 
   # Notifications & Alarms
@@ -35,7 +35,7 @@ dependencies:
   # UI / Charts
   fl_chart: ^0.68.0
 
-  # Sharing & File Path (Newly Added)
+  # Sharing & File Path
   share_plus: ^10.1.2
   path_provider: ^2.1.5
 
@@ -47,7 +47,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-    assets:
+  assets:
     - assets/sounds/
     - assets/audio/assistant/
-    - assets/images/    
+    - assets/images/
