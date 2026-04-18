@@ -1,7 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/daily_report_model.dart';
-import '../models/task_item.dart'; // ✅ Added TaskItem import
+import '../models/task_item.dart'; 
 import 'daily_report_service.dart';
 
 class DailyTaskResetService {
@@ -36,7 +36,6 @@ class DailyTaskResetService {
     await prefs.setString(logicalTaskDateKey, date);
   }
 
-  // ✅ Updated to use new task helpers
   static Future<int> getActiveTaskCount() async {
     final prefs = await SharedPreferences.getInstance();
     final rawTasks = prefs.getStringList(tasksStorageKey) ?? [];
@@ -50,7 +49,6 @@ class DailyTaskResetService {
     return count == 0;
   }
 
-  // ✅ NEW HELPERS FOR TASK FILTERING
   static List<TaskItem> _readTasksFromPrefs(List<String> rawTasks) {
     return rawTasks.map(TaskItem.fromStorage).toList();
   }
@@ -140,10 +138,14 @@ class DailyTaskResetService {
 
     if (lastProcessed == today) return;
 
-    // ✅ REPLACED with specific date counting
     final rawTasks = prefs.getStringList(tasksStorageKey) ?? [];
     final allTasks = _readTasksFromPrefs(rawTasks);
-    final previousDayTasks = _tasksForDate(allTasks, lastProcessed);
+    
+    // ✅ BUG FIXED: আগের দিনের টাস্কগুলোকে একদম নিখুঁতভাবে ফিল্টার করা হয়েছে
+    final previousDayTasks = allTasks.where((t) {
+        final taskDate = t.taskDate.isEmpty ? lastProcessed : t.taskDate;
+        return taskDate == lastProcessed;
+    }).toList();
     
     final completed = _completedFromTasks(previousDayTasks);
     final skipped = _skippedFromTasks(previousDayTasks);
@@ -160,9 +162,9 @@ class DailyTaskResetService {
       studyMinutes: timerStats.studyMinutes,
     );
 
-    // ✅ REPLACED: Specific date task removal instead of clearing everything
+    // ✅ BUG FIXED: শুধুমাত্র আগের দিনের টাস্কগুলো লিস্ট থেকে ক্লিয়ার হবে, আজকেরগুলো থেকে যাবে
     final remainingTasks = allTasks.where((t) { 
-      final taskDate = t.taskDate.isEmpty ? today : t.taskDate; 
+      final taskDate = t.taskDate.isEmpty ? lastProcessed : t.taskDate; 
       return taskDate != lastProcessed; 
     }).toList(); 
     
@@ -178,16 +180,18 @@ class DailyTaskResetService {
   }
 
   /// Last task complete/skip er por popup e YES dile eta call korben.
-  /// Ajker stats save hobe, current tasks clear hobe.
-  /// Tarpor new task add hole logically next-day bucket e dhorbe.
   static Future<void> finalizeTodayAndClearTasks() async {
     final prefs = await SharedPreferences.getInstance();
     final today = todayDate();
 
-    // ✅ REPLACED with specific date counting
     final rawTasks = prefs.getStringList(tasksStorageKey) ?? [];
     final allTasks = _readTasksFromPrefs(rawTasks);
-    final todayTasks = _tasksForDate(allTasks, today);
+    
+    // ✅ BUG FIXED
+    final todayTasks = allTasks.where((t) {
+        final taskDate = t.taskDate.isEmpty ? today : t.taskDate;
+        return taskDate == today;
+    }).toList();
     
     final completed = _completedFromTasks(todayTasks);
     final skipped = _skippedFromTasks(todayTasks);
@@ -204,7 +208,7 @@ class DailyTaskResetService {
       studyMinutes: timerStats.studyMinutes,
     );
 
-    // ✅ REPLACED: Specific date task removal instead of clearing everything
+    // ✅ BUG FIXED
     final remainingTasks = allTasks.where((t) { 
       final taskDate = t.taskDate.isEmpty ? today : t.taskDate; 
       return taskDate != today; 
@@ -216,10 +220,6 @@ class DailyTaskResetService {
     );
 
     await prefs.setString(lastProcessedDateKey, today);
-
-    // Important:
-    // Popup YES er por new task add hole apnar intended rule onujayi
-    // seta next-day task hishebe dhora hobe.
     await prefs.setString(logicalTaskDateKey, tomorrowDate());
   }
 }
